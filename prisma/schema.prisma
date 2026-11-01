@@ -1,0 +1,105 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String               @id @default(uuid())
+  email           String               @unique
+  passwordHash    String
+  name            String
+  role            String               @default("VIEWER") // "ADMIN", "OWNER", "VIEWER"
+  isActive        Boolean              @default(true)
+  permissionEpoch Int                  @default(1)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  ownedDocuments  Document[]           @relation("DocumentOwner")
+  permissions     DocumentPermission[]
+  versionsUploaded DocumentVersion[]
+}
+
+model Document {
+  id                String               @id @default(uuid())
+  title             String
+  description       String?
+  category          String               @default("General")
+  ownerId           String
+  owner             User                 @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  currentStorageKey String               // Randomized internal disk UUID, never client-exposed
+  currentMimeType   String
+  currentByteSize   Int
+  currentVersion    Int                  @default(1)
+  
+  isDeleted         Boolean              @default(false)
+  deletedAt         DateTime?
+  
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  versions          DocumentVersion[]
+  permissions       DocumentPermission[]
+
+  @@index([ownerId])
+  @@index([isDeleted])
+}
+
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  documentId    String
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  storageKey    String
+  mimeType      String
+  byteSize      Int
+  changeSummary String?
+  
+  uploadedById  String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+}
+
+model DocumentPermission {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessLevel String   // "READ" or "EDIT"
+  grantedById String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([documentId, userId])
+  @@index([documentId])
+  @@index([userId])
+}
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  timestamp    DateTime @default(now())
+  userId       String?
+  userEmail    String?
+  action       String   // e.g., "DOC_VIEW", "UNAUTHORIZED_ACCESS_ATTEMPT"
+  resourceType String   // "DOCUMENT", "USER", "SYSTEM"
+  resourceId   String
+  outcome      String   // "SUCCESS", "DENIED"
+  reason       String?
+  clientIp     String?
+  userAgent    String?
+  previousHash String   // Links to preceding row hash
+  entryHash    String   // HMAC-SHA256 signature of this row
+
+  @@index([timestamp])
+  @@index([resourceId])
+  @@index([userId])
+}

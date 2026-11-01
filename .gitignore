@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+dist/
+
+# Environment & Secrets
+.env
+.env.local
+
+# Database
+prisma/*.db
+prisma/*.db-journal
+
+# File Storage Blobs (Isolated Content)
+storage/blobs/*
+!storage/blobs/.gitkeep
+
+# System & OS
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
