@@ -15,9 +15,9 @@ const LoginSchema = z.object({
 });
 
 const RegisterSchema = z.object({
-  name: z.string().min(2),
+  name: z.string().min(2).max(100),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8, 'Password must be at least 8 characters long'),
   role: z.enum(['ADMIN', 'OWNER', 'VIEWER']).default('VIEWER'),
 });
 
@@ -28,8 +28,9 @@ export class AuthController {
       return res.status(400).json({ error: 'Invalid input', details: parse.error.format() });
     }
 
-    const { email, password } = parse.data;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const email = parse.data.email.toLowerCase().trim();
+    const { password } = parse.data;
+    const clientIp = req.clientIp || (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Unknown';
 
     try {
@@ -119,8 +120,26 @@ export class AuthController {
       return res.status(400).json({ error: 'Invalid registration details', details: parse.error.format() });
     }
 
-    const { name, email, password, role } = parse.data;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const name = parse.data.name.trim();
+    const email = parse.data.email.toLowerCase().trim();
+    const { password, role } = parse.data;
+    const clientIp = req.clientIp || (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+
+    // Zero-Trust Rule: Self-assignment of ADMIN role via public registration is STRICTLY PROHIBITED
+    if (role === 'ADMIN') {
+      await AuditService.recordEvent({
+        userEmail: email,
+        action: 'PRIVILEGE_ESCALATION_ATTEMPT',
+        resourceType: 'USER',
+        resourceId: 'ANONYMOUS',
+        outcome: 'DENIED',
+        reason: 'UNAUTHORIZED_ADMIN_REGISTRATION_ATTEMPT',
+        clientIp,
+      });
+      return res.status(403).json({
+        error: 'Forbidden: Self-registration of Administrator accounts is prohibited.',
+      });
+    }
 
     try {
       const existing = await prisma.user.findUnique({ where: { email } });

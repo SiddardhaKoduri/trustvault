@@ -49,3 +49,24 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
 - **Verification & Test Result:**
   - Automated test suite `src/tests/auth.test.ts` passed 6/6 tests.
   - Verified `scripts/verify-db-chain.ts`: 4 cryptographic blocks verified 100% intact with zero tampering.
+
+
+### Entry 003: Forensic Security Audit & Zero-Trust Hardening (Privilege Escalation Interception & Serialized Audit Mutex)
+- **Date & Time:** 2026-11-01 13:37 IST
+- **Target Component:** `src/controllers/auth.controller.ts`, `src/services/audit.service.ts`, `src/app.ts`, `src/tests/auth.test.ts`
+- **Initial Prompt Given to AI:**
+  > "Before proceeding with Day 2, check thoroughly each and every corner and line of code to make sure it is 100% flawless."
+- **Flaws & Security Risks Caught During Forensic Review:**
+  1. **Privilege Escalation on Public Registration:** The registration endpoint allowed clients to pass `role: 'ADMIN'`. *Flaw:* Any anonymous attacker could self-register as a System Administrator. In zero-trust, public self-registration must never assign administrator privileges.
+  2. **Audit Race Conditions under Concurrent Load:** `recordEvent` read the latest entry without serializing concurrent writes. *Flaw:* If two audit events occur simultaneously, both might read the same `previousHash`, causing a branch in the linear cryptographic chain.
+  3. **Case-Sensitive Email Inconsistency:** Login and registration allowed mixed-case emails, risking credential spoofing or duplicate accounts.
+  4. **Unauthenticated IP Resolution Gap:** Endpoints outside `auth.middleware.ts` lacked normalized IP resolution.
+- **Correction Applied & Final Code:**
+  - Blocked self-assignment of `ADMIN` in `auth.controller.ts`, returning `403 Forbidden` and logging a `PRIVILEGE_ESCALATION_ATTEMPT` audit event.
+  - Built an in-memory asynchronous Promise Mutex in `AuditService` ensuring 100% linear, sequential cryptographic hash calculations.
+  - Normalized all email inputs to `.toLowerCase().trim()`.
+  - Added global client IP normalization middleware in `app.ts`.
+- **Verification & Test Result:**
+  - Expanded test suite to 8 tests in `src/tests/auth.test.ts`, verifying that attempting to register an `ADMIN` account fails with 403 and logs to the audit ledger.
+  - All 8 tests passed in 1.54s.
+  - Ran `scripts/verify-db-chain.ts`: All 6 blocks cryptographically verified with 0 defects.

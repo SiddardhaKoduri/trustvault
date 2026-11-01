@@ -18,52 +18,100 @@ export interface LogAuditParams {
 }
 
 export class AuditService {
+  // In-memory Promise chain (Mutex) to guarantee strict serial ordering under high concurrency
+  private static writeQueue: Promise<any> = Promise.resolve();
+
+  /**
+   * Generates canonical payload representation for HMAC hashing.
+   * Includes all critical fields to prevent any partial row modification.
+   */
+  static formatCanonicalPayload(
+    timestamp: Date,
+    userId: string | null | undefined,
+    userEmail: string | null | undefined,
+    action: string,
+    resourceType: string,
+    resourceId: string,
+    outcome: string,
+    reason: string | null | undefined,
+    clientIp: string | null | undefined
+  ): string {
+    return [
+      timestamp.toISOString(),
+      userId || 'ANONYMOUS',
+      userEmail || 'NONE',
+      action,
+      resourceType,
+      resourceId,
+      outcome,
+      reason || 'NONE',
+      clientIp || 'UNKNOWN',
+    ].join('|');
+  }
+
   /**
    * Appends an event to the cryptographic audit chain.
-   * Every record mathematically commits to the state of the previous record.
+   * Serialized via Promise queue to eliminate race conditions under concurrent load.
    */
   static async recordEvent(params: LogAuditParams) {
-    try {
-      // 1. Fetch the latest entry to retrieve its entryHash
-      const latest = await prisma.auditLog.findFirst({
-        orderBy: { id: 'desc' },
-        select: { entryHash: true },
-      });
+    return new Promise((resolve, reject) => {
+      AuditService.writeQueue = AuditService.writeQueue
+        .then(async () => {
+          try {
+            // 1. Fetch latest entry to retrieve its cryptographic hash
+            const latest = await prisma.auditLog.findFirst({
+              orderBy: { id: 'desc' },
+              select: { entryHash: true },
+            });
 
-      const previousHash = latest ? latest.entryHash : GENESIS_HASH;
-      const timestamp = new Date();
+            const previousHash = latest ? latest.entryHash : GENESIS_HASH;
+            const timestamp = new Date();
 
-      // 2. Compute canonical payload representation
-      const canonicalPayload = `${timestamp.toISOString()}|${params.userId || 'ANONYMOUS'}|${params.action}|${params.resourceType}|${params.resourceId}|${params.outcome}|${params.clientIp || 'UNKNOWN'}`;
+            // 2. Canonical payload with all security fields
+            const canonicalPayload = AuditService.formatCanonicalPayload(
+              timestamp,
+              params.userId,
+              params.userEmail,
+              params.action,
+              params.resourceType,
+              params.resourceId,
+              params.outcome,
+              params.reason,
+              params.clientIp
+            );
 
-      // 3. Compute HMAC-SHA256 signature
-      const entryHash = crypto
-        .createHmac('sha256', AUDIT_SECRET)
-        .update(previousHash + canonicalPayload)
-        .digest('hex');
+            // 3. Compute HMAC-SHA256 signature
+            const entryHash = crypto
+              .createHmac('sha256', AUDIT_SECRET)
+              .update(previousHash + canonicalPayload)
+              .digest('hex');
 
-      // 4. Commit to database
-      return await prisma.auditLog.create({
-        data: {
-          timestamp,
-          userId: params.userId,
-          userEmail: params.userEmail,
-          action: params.action,
-          resourceType: params.resourceType,
-          resourceId: params.resourceId,
-          outcome: params.outcome,
-          reason: params.reason,
-          clientIp: params.clientIp,
-          userAgent: params.userAgent,
-          previousHash,
-          entryHash,
-        },
-      });
-    } catch (error) {
-      console.error('Critical failure in AuditService:', error);
-      // Fail closed: in zero-trust, if audit logging fails, you log to stderr
-      throw new Error('Audit record creation failed');
-    }
+            // 4. Commit to database
+            const created = await prisma.auditLog.create({
+              data: {
+                timestamp,
+                userId: params.userId,
+                userEmail: params.userEmail,
+                action: params.action,
+                resourceType: params.resourceType,
+                resourceId: params.resourceId,
+                outcome: params.outcome,
+                reason: params.reason,
+                clientIp: params.clientIp,
+                userAgent: params.userAgent,
+                previousHash,
+                entryHash,
+              },
+            });
+
+            resolve(created);
+          } catch (error) {
+            console.error('Critical failure in AuditService:', error);
+            reject(error);
+          }
+        })
+        .catch(reject);
+    });
   }
 
   /**
@@ -89,7 +137,18 @@ export class AuditService {
       }
 
       // Recompute hash
-      const canonicalPayload = `${entry.timestamp.toISOString()}|${entry.userId || 'ANONYMOUS'}|${entry.action}|${entry.resourceType}|${entry.resourceId}|${entry.outcome}|${entry.clientIp || 'UNKNOWN'}`;
+      const canonicalPayload = AuditService.formatCanonicalPayload(
+        entry.timestamp,
+        entry.userId,
+        entry.userEmail,
+        entry.action,
+        entry.resourceType,
+        entry.resourceId,
+        entry.outcome,
+        entry.reason,
+        entry.clientIp
+      );
+
       const expectedHash = crypto
         .createHmac('sha256', AUDIT_SECRET)
         .update(entry.previousHash + canonicalPayload)

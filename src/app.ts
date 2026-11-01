@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes.js';
+import { AuthenticatedRequest } from './types/index.js';
 
 export const app = express();
 
@@ -34,7 +35,20 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// 4. Healthcheck & Security Telemetry
+// 4. Client IP resolution middleware
+app.use((req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    req.clientIp = forwarded.split(',')[0].trim();
+  } else if (Array.isArray(forwarded)) {
+    req.clientIp = forwarded[0].trim();
+  } else {
+    req.clientIp = req.socket.remoteAddress || '127.0.0.1';
+  }
+  next();
+});
+
+// 5. Healthcheck & Security Telemetry
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'HEALTHY',
@@ -43,15 +57,15 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// 5. Mount API Routes
+// 6. Mount API Routes
 app.use('/api/auth', authRoutes);
 
-// 6. 404 Handler
+// 7. 404 Handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// 7. Centralized Error Handler (Masks internal stack traces to mitigate Threat I-03)
+// 8. Centralized Error Handler (Masks internal stack traces to mitigate Threat I-03)
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled Server Exception:', err);
   const statusCode = err.statusCode || 500;

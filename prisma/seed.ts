@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { AuditService } from '../src/services/audit.service.js';
 
 const prisma = new PrismaClient();
 const AUDIT_SECRET = process.env.AUDIT_SECRET || 'trustvault_audit_chain_hmac_secret_2026_top1';
@@ -57,7 +58,19 @@ async function main() {
 
   // 4. Create Genesis block in cryptographic audit chain
   const timestamp = new Date();
-  const canonicalPayload = `${timestamp.toISOString()}|${admin.id}|SYSTEM_GENESIS_INITIALIZE|SYSTEM|sys_root|SUCCESS|127.0.0.1`;
+  const reason = 'TrustVault Genesis block initialized with benchmark accounts.';
+  const canonicalPayload = AuditService.formatCanonicalPayload(
+    timestamp,
+    admin.id,
+    admin.email,
+    'SYSTEM_GENESIS_INITIALIZE',
+    'SYSTEM',
+    'sys_root',
+    'SUCCESS',
+    reason,
+    '127.0.0.1'
+  );
+
   const entryHash = crypto
     .createHmac('sha256', AUDIT_SECRET)
     .update(GENESIS_HASH + canonicalPayload)
@@ -72,7 +85,7 @@ async function main() {
       resourceType: 'SYSTEM',
       resourceId: 'sys_root',
       outcome: 'SUCCESS',
-      reason: 'TrustVault Genesis block initialized with benchmark accounts.',
+      reason,
       clientIp: '127.0.0.1',
       userAgent: 'TrustVault Seed Harness 1.0',
       previousHash: GENESIS_HASH,
