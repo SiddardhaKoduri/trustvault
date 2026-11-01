@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes.js';
 import documentRoutes from './routes/document.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import { createRateLimiter } from './middleware/rate-limit.middleware.js';
 import { AuthenticatedRequest } from './types/index.js';
 
 export const app = express();
@@ -49,7 +51,14 @@ app.use((req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   next();
 });
 
-// 5. Healthcheck & Security Telemetry
+// 5. In-memory Rate Limiting (Protects login from brute-force Threat S-03)
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 50, // 50 attempts per 15 minutes
+  actionName: 'AUTH_LOGIN',
+});
+
+// 6. Healthcheck & Security Telemetry
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'HEALTHY',
@@ -58,16 +67,18 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// 6. Mount API Routes
+// 7. Mount API Routes
+app.use('/api/auth/login', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/admin', adminRoutes);
 
-// 7. 404 Handler
+// 8. 404 Handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// 8. Centralized Error Handler (Masks internal stack traces to mitigate Threat I-03)
+// 9. Centralized Error Handler (Masks internal stack traces to mitigate Threat I-03)
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled Server Exception:', err);
   const statusCode = err.statusCode || 500;

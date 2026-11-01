@@ -96,3 +96,24 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
   - Added 11 automated security tests in `src/tests/document.test.ts` covering magic bytes, shellcode rejection, path traversal sanitization, Administrative Blindness, and instant revocation.
   - All 19 tests across `auth.test.ts` and `document.test.ts` passed 100%.
   - Ran `scripts/verify-db-chain.ts`: All 20 cryptographic blocks verified intact with zero tampering.
+
+
+### Entry 005: Full Day 2 Completeness & Security Hardening (Document Renaming, Purge, Admin User Directory & Rate Limiting)
+- **Date & Time:** 2026-11-01 13:52 IST
+- **Target Component:** `src/controllers/document.controller.ts`, `src/controllers/admin.controller.ts`, `src/routes/admin.routes.ts`, `src/middleware/rate-limit.middleware.ts`, `src/tests/admin-lifecycle.test.ts`
+- **Initial Prompt Given to AI:**
+  > "Is there anything still left for Day 2 to reach that goal completely? Check Day 1 & Day 2 thoroughly for any vulnerabilities or gaps before moving to Day 3."
+- **Flaws & Feature Gaps Caught During Comprehensive Audit:**
+  1. **Missing Document Metadata Renaming:** The document controller had no endpoint for owners/editors to rename or update category/description metadata (`PUT /api/documents/:id`).
+  2. **Missing Permanent Blob Purge:** Soft-delete moved documents to trash, but there was no permanent purge mechanism (`DELETE /api/documents/:id/purge`) to physically delete isolated file blobs from disk storage.
+  3. **Admin User Lifecycle Gap:** While authentication verified `user.isActive`, the administrator lacked API endpoints to list users, create users, or toggle active/inactive status.
+  4. **Unthrottled Endpoint Protection:** Endpoints were vulnerable to rapid brute-force without rate limiting (violating STRIDE Threat S-03 & D-02).
+- **Correction Applied & Final Code:**
+  - Implemented `updateDocument` (`PUT /api/documents/:id`) with title sanitization and PDP validation (only Owners and Editors can update; Viewers blocked).
+  - Implemented `purgeDocument` (`DELETE /api/documents/:id/purge`) restricted to Document Owners; removes all physical storage blobs and database rows.
+  - Built `AdminController` with `listUsers`, `updateUserStatus` (deactivation immediately bumps `permissionEpoch` cutting off active sessions at $T=0$), and `createUser`.
+  - Built and mounted `createRateLimiter` middleware protecting login from brute-force attempts and logging violations to the audit trail.
+- **Verification & Test Result:**
+  - Added 6 new integration tests in `src/tests/admin-lifecycle.test.ts`.
+  - Total test suite now runs **25 tests across 3 files**, with 100% passing.
+  - Ran `scripts/verify-db-chain.ts`: All 31 cryptographic blocks verified intact with zero tampering.

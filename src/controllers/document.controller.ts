@@ -650,4 +650,106 @@ export class DocumentController {
       return res.status(500).json({ error: 'Failed to restore document.' });
     }
   }
+
+  /**
+   * Updates document metadata (Rename, Category, Description).
+   * Authorized for Document Owner and users with EDIT permission.
+   */
+  static async updateDocument(req: AuthenticatedRequest, res: Response) {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    const { id } = req.params;
+
+    const authResult = await PolicyDecisionPoint.authorize(req.user, id, 'EDIT', {
+      clientIp: req.clientIp,
+    });
+
+    if (!authResult.authorized) {
+      return res.status(authResult.statusCode || 403).json({ error: authResult.reason });
+    }
+
+    const { title, description, category } = req.body;
+    const sanitizedTitle = title ? FileService.sanitizeFilename(String(title)) : undefined;
+
+    try {
+      const updated = await prisma.document.update({
+        where: { id },
+        data: {
+          ...(sanitizedTitle ? { title: sanitizedTitle } : {}),
+          ...(description !== undefined ? { description: String(description).slice(0, 500) } : {}),
+          ...(category ? { category: String(category).slice(0, 50) } : {}),
+        },
+      });
+
+      await AuditService.recordEvent({
+        userId: req.user.id,
+        userEmail: req.user.email,
+        action: 'DOC_UPDATE',
+        resourceType: 'DOCUMENT',
+        resourceId: id,
+        outcome: 'SUCCESS',
+        reason: `Updated document metadata (Title: '${updated.title}', Category: '${updated.category}')`,
+        clientIp: req.clientIp,
+      });
+
+      return res.status(200).json({
+        message: 'Document metadata updated successfully',
+        document: updated,
+      });
+    } catch (error) {
+      console.error('Update document error:', error);
+      return res.status(500).json({ error: 'Failed to update document metadata.' });
+    }
+  }
+
+  /**
+   * Permanently purges a document and all version file blobs from storage.
+   * STRUCTURAL PRIVILEGE: Strictly restricted to Document Owner.
+   */
+  static async purgeDocument(req: AuthenticatedRequest, res: Response) {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    const { id } = req.params;
+
+    const authResult = await PolicyDecisionPoint.authorize(req.user, id, 'DELETE', {
+      clientIp: req.clientIp,
+    });
+
+    if (!authResult.authorized) {
+      return res.status(authResult.statusCode || 403).json({ error: authResult.reason });
+    }
+
+    try {
+      // 1. Fetch all versions to collect storage keys
+      const versions = await prisma.documentVersion.findMany({
+        where: { documentId: id },
+        select: { storageKey: true },
+      });
+
+      // 2. Delete all physical blobs from disk
+      for (const v of versions) {
+        await FileService.deleteBlob(v.storageKey).catch(() => {});
+      }
+      if (authResult.document.currentStorageKey) {
+        await FileService.deleteBlob(authResult.document.currentStorageKey).catch(() => {});
+      }
+
+      // 3. Delete database record (cascades versions and permissions)
+      await prisma.document.delete({ where: { id } });
+
+      await AuditService.recordEvent({
+        userId: req.user.id,
+        userEmail: req.user.email,
+        action: 'DOC_PURGE',
+        resourceType: 'DOCUMENT',
+        resourceId: id,
+        outcome: 'SUCCESS',
+        reason: `Permanently purged document '${authResult.document.title}' and all associated version blobs`,
+        clientIp: req.clientIp,
+      });
+
+      return res.status(200).json({ message: 'Document and all versions permanently purged.' });
+    } catch (error) {
+      console.error('Purge document error:', error);
+      return res.status(500).json({ error: 'Failed to permanently purge document.' });
+    }
+  }
 }

@@ -18,6 +18,7 @@ router.use(authenticate);
 router.post('/', upload.single('file'), DocumentController.uploadDocument);
 router.get('/', DocumentController.listDocuments);
 router.get('/:id', DocumentController.getDocument);
+router.put('/:id', DocumentController.updateDocument);
 router.get('/:id/download', DocumentController.downloadDocument);
 
 // Versioning
@@ -28,8 +29,9 @@ router.get('/:id/versions/:versionNumber/download', DocumentController.downloadV
 router.post('/:id/permissions', DocumentController.shareDocument);
 router.delete('/:id/permissions/:userId', DocumentController.revokePermission);
 
-// Trash / Restore
+// Trash / Restore / Purge
 router.delete('/:id', DocumentController.softDeleteDocument);
+router.delete('/:id/purge', DocumentController.purgeDocument);
 router.post('/:id/restore', DocumentController.restoreDocument);
 
 export default router;
