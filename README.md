@@ -1,6 +1,7 @@
 # 🛡️ TrustVault — Zero-Trust Document Vault with Cryptographic Audit Trail
 
 [![Security: Zero-Trust PDP](https://img.shields.io/badge/Security-Zero--Trust%20PDP-000000?style=for-the-badge&logo=shield)](https://github.com/SiddardhaKoduri/trustvault)
+[![Live Deployment](https://img.shields.io/badge/Live%20Demo-Render%20HTTPS-brightgreen?style=for-the-badge&logo=render)](https://trustvault-zero-trust.onrender.com)
 [![Audit: HMAC--SHA256 Chained](https://img.shields.io/badge/Audit%20Ledger-HMAC--SHA256%20Chained-c90000?style=for-the-badge)](https://github.com/SiddardhaKoduri/trustvault)
 [![Tests: 40/40 Passing](https://img.shields.io/badge/Tests-40%2F40%20Passing%20(100%25)-007acc?style=for-the-badge)](https://github.com/SiddardhaKoduri/trustvault)
 [![Design: Swiss Minimalist](https://img.shields.io/badge/Design-Swiss%20Minimalist-black?style=for-the-badge)](https://github.com/SiddardhaKoduri/trustvault)
@@ -8,6 +9,7 @@
 
 > **Participant:** Siddardha Koduri (`siddardhakoduri9`)  
 > **Challenge Portal:** [Snovasys Fresher Hiring Challenge 2026 — RISE (Project #695)](https://hackathon.snovasys.com/project/695)  
+> **Live Deployment:** [https://trustvault-zero-trust.onrender.com](https://trustvault-zero-trust.onrender.com)  
 > **Submission Deadline:** Saturday, 7 November 2026, 6:00 PM IST  
 
 ---
