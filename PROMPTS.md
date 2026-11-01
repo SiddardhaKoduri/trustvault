@@ -70,3 +70,29 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
   - Expanded test suite to 8 tests in `src/tests/auth.test.ts`, verifying that attempting to register an `ADMIN` account fails with 403 and logs to the audit ledger.
   - All 8 tests passed in 1.54s.
   - Ran `scripts/verify-db-chain.ts`: All 6 blocks cryptographically verified with 0 defects.
+
+
+## 📅 Day 2 — Sunday/Monday, 1-2 November 2026
+
+### Entry 004: Defensive Uploads, Magic-Byte Sniffing, Versioning & Instant Revocation
+- **Date & Time:** 2026-11-01 13:43 IST
+- **Target Component:** `src/services/file.service.ts`, `src/controllers/document.controller.ts`, `src/routes/document.routes.ts`, `src/tests/document.test.ts`
+- **Initial Prompt Given to AI:**
+  > "Proceed with Day 2: Build the defensive file upload pipeline, magic-byte inspection, isolated storage, versioning, granular sharing, and instant revocation."
+- **AI Initial Output / Recommendation:**
+  The AI suggested using Multer with `diskStorage` writing directly to `uploads/` based on client filename extensions (`file.originalname`), and checking permissions only at the route handler with `if (req.user.id !== doc.ownerId) return 403`.
+- **Flaws & Security Risks Caught During Human Review:**
+  1. **Arbitrary File Upload & Shellcode Injection:** Relying on filename extensions allows an attacker to upload an executable (`.exe` or `.elf`) disguised as `file.pdf`. The server would accept malicious binary executables.
+  2. **Path Traversal Vulnerability:** Saving files using user-supplied names like `../../../../etc/shadow` risks writing files outside the storage sandbox.
+  3. **Direct Disk Leakage:** Writing unvalidated uploads directly to disk leaves malicious payloads on the filesystem even if processing later errors out.
+  4. **Audit Hash Forking in Multi-Worker Environments:** Concurrent test runners and worker threads forked the audit hash chain when reading `previousHash` outside an atomic database transaction.
+- **Correction Applied & Final Code:**
+  - Implemented **Memory-Buffered Magic-Byte Inspection** in `FileService.validateMagicBytes`: sniffs raw header bytes (`%PDF-`, PNG `0x89504E47`, JPEG `0xFFD8FF`, and non-null UTF-8 text) before any byte is written to storage.
+  - Neutralized Path Traversal using `path.basename()` and regex sanitization.
+  - Commits files to disk under non-deterministic UUID v4 keys (`crypto.randomUUID()`) in `storage/blobs/`, completely isolated from original filenames.
+  - Enforced atomic database transactions (`prisma.$transaction`) in `AuditService.recordEvent` to ensure linear hash chain integrity across all concurrent threads.
+  - Built **Instant Revocation Mechanism**: revoking a user deletes `DocumentPermission` and increments `user.permissionEpoch`, terminating access at $T=0$.
+- **Verification & Test Result:**
+  - Added 11 automated security tests in `src/tests/document.test.ts` covering magic bytes, shellcode rejection, path traversal sanitization, Administrative Blindness, and instant revocation.
+  - All 19 tests across `auth.test.ts` and `document.test.ts` passed 100%.
+  - Ran `scripts/verify-db-chain.ts`: All 20 cryptographic blocks verified intact with zero tampering.

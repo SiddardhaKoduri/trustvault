@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes.js';
+import documentRoutes from './routes/document.routes.js';
 import { AuthenticatedRequest } from './types/index.js';
 
 export const app = express();
@@ -59,6 +60,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 // 6. Mount API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/documents', documentRoutes);
 
 // 7. 404 Handler
 app.use((req: Request, res: Response) => {

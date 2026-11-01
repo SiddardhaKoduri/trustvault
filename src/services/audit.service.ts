@@ -18,9 +18,6 @@ export interface LogAuditParams {
 }
 
 export class AuditService {
-  // In-memory Promise chain (Mutex) to guarantee strict serial ordering under high concurrency
-  private static writeQueue: Promise<any> = Promise.resolve();
-
   /**
    * Generates canonical payload representation for HMAC hashing.
    * Includes all critical fields to prevent any partial row modification.
@@ -51,67 +48,61 @@ export class AuditService {
 
   /**
    * Appends an event to the cryptographic audit chain.
-   * Serialized via Promise queue to eliminate race conditions under concurrent load.
+   * Enforces database transaction atomicity to ensure linear hash sequencing across all threads/processes.
    */
   static async recordEvent(params: LogAuditParams) {
-    return new Promise((resolve, reject) => {
-      AuditService.writeQueue = AuditService.writeQueue
-        .then(async () => {
-          try {
-            // 1. Fetch latest entry to retrieve its cryptographic hash
-            const latest = await prisma.auditLog.findFirst({
-              orderBy: { id: 'desc' },
-              select: { entryHash: true },
-            });
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // 1. Fetch latest entry atomically
+        const latest = await tx.auditLog.findFirst({
+          orderBy: { id: 'desc' },
+          select: { entryHash: true },
+        });
 
-            const previousHash = latest ? latest.entryHash : GENESIS_HASH;
-            const timestamp = new Date();
+        const previousHash = latest ? latest.entryHash : GENESIS_HASH;
+        const timestamp = new Date();
 
-            // 2. Canonical payload with all security fields
-            const canonicalPayload = AuditService.formatCanonicalPayload(
-              timestamp,
-              params.userId,
-              params.userEmail,
-              params.action,
-              params.resourceType,
-              params.resourceId,
-              params.outcome,
-              params.reason,
-              params.clientIp
-            );
+        // 2. Canonical payload with all security fields
+        const canonicalPayload = AuditService.formatCanonicalPayload(
+          timestamp,
+          params.userId,
+          params.userEmail,
+          params.action,
+          params.resourceType,
+          params.resourceId,
+          params.outcome,
+          params.reason,
+          params.clientIp
+        );
 
-            // 3. Compute HMAC-SHA256 signature
-            const entryHash = crypto
-              .createHmac('sha256', AUDIT_SECRET)
-              .update(previousHash + canonicalPayload)
-              .digest('hex');
+        // 3. Compute HMAC-SHA256 signature
+        const entryHash = crypto
+          .createHmac('sha256', AUDIT_SECRET)
+          .update(previousHash + canonicalPayload)
+          .digest('hex');
 
-            // 4. Commit to database
-            const created = await prisma.auditLog.create({
-              data: {
-                timestamp,
-                userId: params.userId,
-                userEmail: params.userEmail,
-                action: params.action,
-                resourceType: params.resourceType,
-                resourceId: params.resourceId,
-                outcome: params.outcome,
-                reason: params.reason,
-                clientIp: params.clientIp,
-                userAgent: params.userAgent,
-                previousHash,
-                entryHash,
-              },
-            });
-
-            resolve(created);
-          } catch (error) {
-            console.error('Critical failure in AuditService:', error);
-            reject(error);
-          }
-        })
-        .catch(reject);
-    });
+        // 4. Commit to database within the same atomic transaction
+        return await tx.auditLog.create({
+          data: {
+            timestamp,
+            userId: params.userId,
+            userEmail: params.userEmail,
+            action: params.action,
+            resourceType: params.resourceType,
+            resourceId: params.resourceId,
+            outcome: params.outcome,
+            reason: params.reason,
+            clientIp: params.clientIp,
+            userAgent: params.userAgent,
+            previousHash,
+            entryHash,
+          },
+        });
+      });
+    } catch (error) {
+      console.error('Critical failure in AuditService:', error);
+      throw error;
+    }
   }
 
   /**

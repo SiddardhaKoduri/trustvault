@@ -80,18 +80,19 @@ describe('Day 1: Zero-Trust Authentication, RBAC & Chained Audit Verification', 
   });
 
   it('POST /api/auth/register should allow valid registration as OWNER or VIEWER', async () => {
+    const uniqueEmail = `charlie_${Date.now()}@vault.local`;
     const res = await request(app)
       .post('/api/auth/register')
       .send({
         name: 'Charlie New Owner',
-        email: 'charlie@vault.local',
+        email: uniqueEmail,
         password: 'CharliePassword123!',
         role: 'OWNER',
       });
 
     expect(res.status).toBe(201);
     expect(res.body.user.role).toBe('OWNER');
-    expect(res.body.user.email).toBe('charlie@vault.local');
+    expect(res.body.user.email).toBe(uniqueEmail);
   });
 
   it('GET /api/auth/me without token should return 401 unauthorized', async () => {
