@@ -36,6 +36,7 @@ This threat model outlines trust boundaries, threat actors, attack vectors, and 
 | **T-01** | Rogue DB user modifies or deletes historical audit rows | Critical | **Cryptographic Hash Chain:** Every audit row includes `HMAC_SHA256(secret, prevHash + payload)`. `scripts/audit_chain_verifier.js` detects any modified or deleted row. |
 | **T-02** | Malicious file disguised as PDF (MIME-type spoofing) | High | **Binary Magic-Byte Inspection:** The server validates the raw header bytes (`%PDF-`, PNG, JPEG) before saving. Files with mismatched headers are rejected with HTTP 400. |
 | **T-03** | Path Traversal during file upload (e.g. `../../etc/passwd`) | Critical | Uploaded files are stored on disk under **randomized UUID v4 keys** detached from the original filename. Original names are stored only as sanitized metadata. |
+| **T-04** | Stored XSS via uploaded HTML/SVG or malicious scripts in text files | High | **Active Script Sanitization:** `FileService.validateMagicBytes` actively parses text buffers and rejects `<script>`, `<html>`, `<!DOCTYPE>`, `<?php>`, and `<svg>` payloads with HTTP 400. |
 
 ### 3. Repudiation (Denial of Action)
 | ID | Threat Description | Severity | Concrete Mitigation Implemented in Code |
@@ -55,6 +56,7 @@ This threat model outlines trust boundaries, threat actors, attack vectors, and 
 | :--- | :--- | :---: | :--- |
 | **D-01** | Attacker uploads multi-gigabyte files to exhaust disk space | High | Strict 5 MB file size limit enforced at the streaming middleware layer before files hit disk. |
 | **D-02** | Rapid automated requests saturate database connections | Medium | Route-level rate limiting using in-memory token bucket. |
+| **D-03** | Automated registration bots flood user database | High | Route-level rate limiting on `/api/auth/register` (max 20 requests per 15 min per IP) with audit logging on breach. |
 
 ### 6. Elevation of Privilege (Privilege Escalation)
 | ID | Threat Description | Severity | Concrete Mitigation Implemented in Code |

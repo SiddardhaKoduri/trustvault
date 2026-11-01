@@ -2,6 +2,7 @@
 let currentUser = null;
 let currentView = 'documents';
 let currentDocIdForAction = null;
+let currentLoadedDocs = [];
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -90,6 +91,12 @@ function renderUserHeader() {
   const railUsers = document.getElementById('railLinkUsers');
   if (railUsers) {
     railUsers.style.display = currentUser.role === 'ADMIN' ? 'flex' : 'none';
+  }
+
+  // Hide Audit link for Viewers
+  const railAudit = document.getElementById('railLinkAudit');
+  if (railAudit) {
+    railAudit.style.display = currentUser.role === 'VIEWER' ? 'none' : 'flex';
   }
 
   // Hide upload button if Viewer
@@ -207,6 +214,7 @@ async function loadDocuments() {
 
     const data = await res.json();
     let docs = data.documents || [];
+    currentLoadedDocs = docs;
 
     if (isShared) {
       docs = docs.filter((d) => d.userAccessLevel !== 'OWNER');
@@ -241,8 +249,9 @@ async function loadDocuments() {
                   ? `
                 <a href="/api/documents/${doc.id}/download" class="btn btn-sm" download>DOWNLOAD</a>
                 <button class="btn btn-sm" onclick="openVersionsModal('${doc.id}')">VERSIONS</button>
-                ${isOwner ? `<button class="btn btn-sm" onclick="openShareModal('${doc.id}', '${escapeHtml(doc.title)}')">SHARE</button>` : ''}
-                ${isOwner || isEditor ? `<button class="btn btn-sm" onclick="openRenameModal('${doc.id}', '${escapeHtml(doc.title)}', '${escapeHtml(doc.category)}')">RENAME</button>` : ''}
+                ${isOwner ? `<button class="btn btn-sm" onclick="openShareModal('${doc.id}')">SHARE</button>` : ''}
+                ${isOwner || isEditor ? `<button class="btn btn-sm" onclick="openRenameModal('${doc.id}')">RENAME</button>` : ''}
+                ${isOwner ? `<button class="btn btn-sm" onclick="openDocAuditModal('${doc.id}')">AUDIT</button>` : ''}
                 ${isOwner ? `<button class="btn btn-sm btn-accent" onclick="softDeleteDoc('${doc.id}')">TRASH</button>` : ''}
               `
                   : `
@@ -376,8 +385,10 @@ async function handleVersionUpload() {
 }
 
 // Sharing & Instant Revocation
-async function openShareModal(docId, title) {
+async function openShareModal(docId) {
   currentDocIdForAction = docId;
+  const doc = currentLoadedDocs.find((d) => d.id === docId);
+  const title = doc ? doc.title : 'Document';
   document.getElementById('shareModalTitle').textContent = `SHARE: ${title}`;
   showModal('shareModal');
   loadCollaborators(docId);
@@ -403,7 +414,7 @@ async function loadCollaborators(docId) {
       <tr>
         <td>
           <div style="font-weight: 700;">${escapeHtml(p.user.name || 'Unnamed')}</div>
-          <div class="mono" style="font-size: 11px; color: #666;">${p.user.email}</div>
+          <div class="mono" style="font-size: 11px; color: #666;">${escapeHtml(p.user.email)}</div>
         </td>
         <td><span class="badge ${p.accessLevel === 'EDIT' ? 'badge-edit' : 'badge-read'}">${p.accessLevel}</span></td>
         <td>
@@ -472,10 +483,12 @@ async function instantRevoke(docId, userId) {
 }
 
 // Rename
-function openRenameModal(docId, title, category) {
+function openRenameModal(docId) {
   currentDocIdForAction = docId;
-  document.getElementById('renameTitleInput').value = title;
-  document.getElementById('renameCategoryInput').value = category;
+  const doc = currentLoadedDocs.find((d) => d.id === docId);
+  document.getElementById('renameTitleInput').value = doc ? doc.title : '';
+  document.getElementById('renameCategoryInput').value = doc ? doc.category : 'General';
+  document.getElementById('renameDescriptionInput').value = doc?.description || '';
   showModal('renameModal');
 }
 
@@ -531,6 +544,52 @@ async function purgeDoc(docId) {
   }
 }
 
+// Document-Specific Access History (Answers: "Who opened this file, and when?")
+async function openDocAuditModal(docId) {
+  const doc = currentLoadedDocs.find((d) => d.id === docId);
+  const title = doc ? doc.title : 'Document';
+  document.getElementById('docAuditModalTitle').textContent = `ACCESS AUDIT: ${title}`;
+  const tableBody = document.getElementById('docAuditTableBody');
+  tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 12px;">Querying access log...</td></tr>`;
+  showModal('docAuditModal');
+
+  try {
+    const res = await fetch(`/api/audit/document/${docId}`);
+    if (!res.ok) {
+      tableBody.innerHTML = `<tr><td colspan="6" style="color: var(--dp-color-accent); text-align: center;">Access Denied: Only Owner or Admin can inspect document audit trail.</td></tr>`;
+      return;
+    }
+
+    const data = await res.json();
+    const logs = data.logs || [];
+    if (logs.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 12px; color: #666;">No access events recorded yet.</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = logs
+      .map((l) => {
+        const isSuccess = l.outcome === 'SUCCESS';
+        return `
+        <tr>
+          <td class="mono" style="font-size: 11px;">${new Date(l.timestamp).toISOString().replace('T', ' ').slice(0, 19)}</td>
+          <td>
+            <div style="font-weight: 700; font-size: 12px;">${escapeHtml(l.userId || 'ANONYMOUS')}</div>
+            <div class="mono" style="font-size: 11px; color: #666;">${escapeHtml(l.userEmail || l.clientIp)}</div>
+          </td>
+          <td><span class="mono" style="font-weight: 700;">${escapeHtml(l.action)}</span></td>
+          <td><span class="badge ${isSuccess ? 'badge-success' : 'badge-denied'}">${escapeHtml(l.outcome)}</span></td>
+          <td class="mono" style="font-size: 11px;">${escapeHtml(l.clientIp || '127.0.0.1')}</td>
+          <td class="mono" style="font-size: 10px;" title="${escapeHtml(l.entryHash)}">${escapeHtml(l.entryHash.slice(0, 8))}...</td>
+        </tr>
+      `;
+      })
+      .join('');
+  } catch (err) {
+    tableBody.innerHTML = `<tr><td colspan="6" style="color: var(--dp-color-accent); text-align: center;">Failed to retrieve audit trail</td></tr>`;
+  }
+}
+
 // Audit Ledger View
 async function loadAuditLogs() {
   const tableBody = document.getElementById('auditTableBody');
@@ -554,22 +613,22 @@ async function loadAuditLogs() {
           <td class="mono" style="font-weight: 700;">#${entry.id}</td>
           <td class="mono" style="font-size: 11px;">${new Date(entry.timestamp).toISOString().replace('T', ' ').slice(0, 19)}</td>
           <td>
-            <div style="font-weight: 700; font-size: 12px;">${entry.userId || 'ANONYMOUS'}</div>
-            <div class="mono" style="font-size: 11px; color: #666;">${entry.userEmail || entry.clientIp}</div>
+            <div style="font-weight: 700; font-size: 12px;">${escapeHtml(entry.userId || 'ANONYMOUS')}</div>
+            <div class="mono" style="font-size: 11px; color: #666;">${escapeHtml(entry.userEmail || entry.clientIp)}</div>
           </td>
-          <td><span class="mono" style="font-weight: 700;">${entry.action}</span></td>
-          <td class="mono" style="font-size: 11px;">${entry.resourceId}</td>
+          <td><span class="mono" style="font-weight: 700;">${escapeHtml(entry.action)}</span></td>
+          <td class="mono" style="font-size: 11px;">${escapeHtml(entry.resourceId)}</td>
           <td>
             <span class="badge ${isSuccess ? 'badge-success' : 'badge-denied'}">
-              ${entry.outcome}
+              ${escapeHtml(entry.outcome)}
             </span>
             ${entry.reason ? `<div style="font-size: 10px; margin-top: 2px; color: #555;">${escapeHtml(entry.reason)}</div>` : ''}
           </td>
           <td>
             <div class="hash-link">
-              <span title="Previous Hash">${entry.previousHash.slice(0, 8)}...</span>
+              <span title="Previous Hash">${escapeHtml(entry.previousHash.slice(0, 8))}...</span>
               <span class="arrow">→</span>
-              <span title="Entry Signature" style="font-weight: 700;">${entry.entryHash.slice(0, 8)}...</span>
+              <span title="Entry Signature" style="font-weight: 700;">${escapeHtml(entry.entryHash.slice(0, 8))}...</span>
             </div>
           </td>
         </tr>

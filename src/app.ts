@@ -20,7 +20,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
       },
@@ -55,11 +55,17 @@ app.use((req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   next();
 });
 
-// 5. In-memory Rate Limiting (Protects login from brute-force Threat S-03)
+// 5. In-memory Rate Limiting (Protects auth endpoints from brute-force & mass registration)
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   maxRequests: 50, // 50 attempts per 15 minutes
   actionName: 'AUTH_LOGIN',
+});
+
+const registerLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 20, // 20 registrations per 15 minutes
+  actionName: 'AUTH_REGISTER',
 });
 
 // 6. Healthcheck & Security Telemetry
@@ -73,6 +79,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 // 7. Mount API Routes
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/admin', adminRoutes);

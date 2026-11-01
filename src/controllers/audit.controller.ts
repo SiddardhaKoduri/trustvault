@@ -6,22 +6,26 @@ import { AuthenticatedRequest } from '../types/index.js';
 
 export class AuditController {
   /**
-   * Retrieves system-wide cryptographic audit trail.
-   * Access strictly restricted to System Administrators.
+   * Retrieves cryptographic audit trail.
+   * - System Administrators: Full system-wide visibility.
+   * - Document Owners: Scoped strictly to documents they own (zero unauthorized leakage).
+   * - Viewers / Collaborators: Strictly forbidden (403).
    */
   static async getSystemAuditLogs(req: AuthenticatedRequest, res: Response) {
-    if (!req.user || req.user.role !== 'ADMIN') {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+
+    if (req.user.role === 'VIEWER') {
       await AuditService.recordEvent({
-        userId: req.user?.id,
-        userEmail: req.user?.email,
+        userId: req.user.id,
+        userEmail: req.user.email,
         action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
         resourceType: 'SYSTEM',
         resourceId: 'AUDIT_LEDGER',
         outcome: 'DENIED',
-        reason: 'NON_ADMIN_ATTEMPTED_AUDIT_LOG_READ',
+        reason: 'VIEWER_ATTEMPTED_AUDIT_LOG_READ',
         clientIp: req.clientIp,
       });
-      return res.status(403).json({ error: 'Access denied: Administrator privileges required.' });
+      return res.status(403).json({ error: 'Access denied: Viewers cannot inspect audit records.' });
     }
 
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
@@ -42,6 +46,16 @@ export class AuditController {
         ];
       }
 
+      // If actor is OWNER (not ADMIN), scope logs strictly to documents they own
+      if (req.user.role === 'OWNER') {
+        const ownedDocs = await prisma.document.findMany({
+          where: { ownerId: req.user.id },
+          select: { id: true },
+        });
+        const ownedIds = ownedDocs.map((d) => d.id);
+        where.resourceId = { in: ownedIds };
+      }
+
       const [total, entries] = await Promise.all([
         prisma.auditLog.count({ where }),
         prisma.auditLog.findMany({
@@ -57,31 +71,42 @@ export class AuditController {
         page,
         totalPages: Math.ceil(total / limit),
         entries,
+        scopedToOwner: req.user.role === 'OWNER',
       });
     } catch (error) {
-      console.error('System audit retrieval error:', error);
+      console.error('Audit retrieval error:', error);
       return res.status(500).json({ error: 'Failed to retrieve audit trail.' });
     }
   }
 
   /**
    * Retrieves document-specific audit trail for Document Owners.
-   * Allows owners to see: "Who accessed this document, and when?"
+   * Answers the critical security question: "Who opened this file, and when?"
    */
   static async getDocumentAuditLogs(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ error: 'Authentication required' });
     const { id } = req.params;
 
-    // Check ownership: Only Document Owner can inspect document-specific audit history
-    const authResult = await PolicyDecisionPoint.authorize(req.user, id, 'READ', {
-      clientIp: req.clientIp,
+    const doc = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, title: true, ownerId: true },
     });
 
-    if (!authResult.authorized) {
-      return res.status(authResult.statusCode || 403).json({ error: authResult.reason });
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found.' });
     }
 
-    if (authResult.accessLevel !== 'OWNER' && req.user.role !== 'ADMIN') {
+    if (doc.ownerId !== req.user.id && req.user.role !== 'ADMIN') {
+      await AuditService.recordEvent({
+        userId: req.user.id,
+        userEmail: req.user.email,
+        action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
+        resourceType: 'DOCUMENT',
+        resourceId: id,
+        outcome: 'DENIED',
+        reason: 'NON_OWNER_ATTEMPTED_DOC_AUDIT_READ',
+        clientIp: req.clientIp,
+      });
       return res.status(403).json({
         error: 'Forbidden: Only the document owner can inspect the document audit trail.',
       });
@@ -98,7 +123,7 @@ export class AuditController {
 
       return res.status(200).json({
         documentId: id,
-        documentTitle: authResult.document.title,
+        documentTitle: doc.title,
         totalEvents: logs.length,
         logs,
       });

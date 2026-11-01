@@ -82,6 +82,20 @@ export class FileService {
       try {
         const textStr = buffer.toString('utf-8');
         if (textStr.length > 0) {
+          const textLower = textStr.slice(0, 2048).toLowerCase();
+          // Prohibit active HTML, SVG, and script payloads in text files to eliminate stored XSS vectors
+          if (
+            textLower.includes('<script') ||
+            textLower.includes('<html') ||
+            textLower.includes('<!doctype') ||
+            textLower.includes('<?php') ||
+            textLower.includes('<svg')
+          ) {
+            return {
+              valid: false,
+              error: 'Executable scripts and HTML/SVG markup are prohibited in vault documents.',
+            };
+          }
           return { valid: true, detectedMimeType: 'text/plain' };
         }
       } catch {

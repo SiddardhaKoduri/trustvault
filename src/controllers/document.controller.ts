@@ -612,19 +612,21 @@ export class DocumentController {
 
   /**
    * Restores a soft-deleted document from trash.
+   * STRUCTURAL PRIVILEGE: Strictly restricted to Document Owner.
    */
   static async restoreDocument(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ error: 'Authentication required' });
     const { id } = req.params;
 
+    const authResult = await PolicyDecisionPoint.authorize(req.user, id, 'RESTORE', {
+      clientIp: req.clientIp,
+    });
+
+    if (!authResult.authorized) {
+      return res.status(authResult.statusCode || 403).json({ error: authResult.reason });
+    }
+
     try {
-      const doc = await prisma.document.findUnique({ where: { id } });
-      if (!doc) return res.status(404).json({ error: 'Document not found' });
-
-      if (doc.ownerId !== req.user.id) {
-        return res.status(403).json({ error: 'Only the owner can restore this document.' });
-      }
-
       await prisma.document.update({
         where: { id },
         data: {
@@ -640,7 +642,7 @@ export class DocumentController {
         resourceType: 'DOCUMENT',
         resourceId: id,
         outcome: 'SUCCESS',
-        reason: `Restored document '${doc.title}' from Trash`,
+        reason: `Restored document '${authResult.document.title}' from Trash`,
         clientIp: req.clientIp,
       });
 
@@ -709,7 +711,7 @@ export class DocumentController {
     if (!req.user) return res.status(401).json({ error: 'Authentication required' });
     const { id } = req.params;
 
-    const authResult = await PolicyDecisionPoint.authorize(req.user, id, 'DELETE', {
+    const authResult = await PolicyDecisionPoint.authorize(req.user, id, 'PURGE', {
       clientIp: req.clientIp,
     });
 

@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { AuditService } from './audit.service.js';
 import { SessionUser, AuthorizationResult } from '../types/index.js';
 
-export type VaultOperation = 'READ' | 'DOWNLOAD' | 'EDIT' | 'DELETE' | 'SHARE';
+export type VaultOperation = 'READ' | 'DOWNLOAD' | 'EDIT' | 'DELETE' | 'RESTORE' | 'PURGE' | 'SHARE';
 
 export class PolicyDecisionPoint {
   /**
@@ -10,7 +10,7 @@ export class PolicyDecisionPoint {
    * Enforces zero-trust invariants:
    * - Strict server-side verification
    * - Administrative Blindness (Admins cannot read documents without explicit share)
-   * - Editors cannot delete or share
+   * - Editors cannot delete, restore, purge, or share
    * - Automatic cryptographic audit logging for both success and refused attempts
    */
   static async authorize(
@@ -40,7 +40,23 @@ export class PolicyDecisionPoint {
       where: { id: documentId },
     });
 
-    if (!doc || doc.isDeleted) {
+    if (!doc) {
+      await AuditService.recordEvent({
+        userId: currentUser.id,
+        userEmail: currentUser.email,
+        action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
+        resourceType: 'DOCUMENT',
+        resourceId: documentId,
+        outcome: 'DENIED',
+        reason: 'DOCUMENT_NOT_FOUND',
+        clientIp: context?.clientIp,
+        userAgent: context?.userAgent,
+      });
+      return { authorized: false, statusCode: 404, reason: 'Document not found' };
+    }
+
+    // If document is soft-deleted, ONLY 'RESTORE' and 'PURGE' are permissible operations (and ONLY by the owner)
+    if (doc.isDeleted && operation !== 'RESTORE' && operation !== 'PURGE') {
       await AuditService.recordEvent({
         userId: currentUser.id,
         userEmail: currentUser.email,
@@ -55,13 +71,23 @@ export class PolicyDecisionPoint {
       return { authorized: false, statusCode: 404, reason: 'Document not found' };
     }
 
+    // If attempting to restore a document that is not in trash
+    if (operation === 'RESTORE' && !doc.isDeleted) {
+      return { authorized: false, statusCode: 400, reason: 'Document is not in trash' };
+    }
+
     // 3. Document Owner check (Owners have full permissions)
     if (doc.ownerId === currentUser.id) {
       return { authorized: true, document: doc, accessLevel: 'OWNER' };
     }
 
-    // 4. Structural operations (DELETE, SHARE) can ONLY be performed by the Owner
-    if (operation === 'DELETE' || operation === 'SHARE') {
+    // 4. Structural operations (DELETE, RESTORE, PURGE, SHARE) can ONLY be performed by the Owner
+    if (
+      operation === 'DELETE' ||
+      operation === 'RESTORE' ||
+      operation === 'PURGE' ||
+      operation === 'SHARE'
+    ) {
       await AuditService.recordEvent({
         userId: currentUser.id,
         userEmail: currentUser.email,
@@ -76,7 +102,7 @@ export class PolicyDecisionPoint {
       return {
         authorized: false,
         statusCode: 403,
-        reason: 'Only the document owner can delete or manage permissions',
+        reason: 'Only the document owner can perform this operation',
       };
     }
 
