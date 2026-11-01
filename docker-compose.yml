@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  trustvault:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trustvault-zero-trust
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/prisma/vault.db
+      - JWT_SECRET=trustvault_production_jwt_secret_key_snovasys_2026_challenge
+      - AUDIT_SECRET=trustvault_audit_chain_hmac_secret_2026_snovasys_top1
+      - STORAGE_DIR=/app/storage/blobs
+    volumes:
+      - vault_storage:/app/storage/blobs
+      - vault_db:/app/prisma
+
+volumes:
+  vault_storage:
+    driver: local
+  vault_db:
+    driver: local

@@ -10,19 +10,14 @@ const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000
 async function main() {
   console.log('Seeding TrustVault Zero-Trust benchmark accounts...');
 
-  // Clean existing data for clean seed
-  await prisma.documentPermission.deleteMany({});
-  await prisma.documentVersion.deleteMany({});
-  await prisma.document.deleteMany({});
-  await prisma.auditLog.deleteMany({});
-  await prisma.user.deleteMany({});
-
   const defaultPassword = 'VaultPassword2026!';
   const passwordHash = await bcrypt.hash(defaultPassword, 12);
 
-  // 1. Create System Administrator (Zero-Knowledge Admin)
-  const admin = await prisma.user.create({
-    data: {
+  // 1. Ensure System Administrator exists
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@vault.local' },
+    update: { isActive: true },
+    create: {
       name: 'System Administrator',
       email: 'admin@vault.local',
       passwordHash,
@@ -32,9 +27,11 @@ async function main() {
     },
   });
 
-  // 2. Create Document Owner
-  const owner = await prisma.user.create({
-    data: {
+  // 2. Ensure Document Owner exists
+  const owner = await prisma.user.upsert({
+    where: { email: 'owner@vault.local' },
+    update: { isActive: true },
+    create: {
       name: 'Alice (Document Owner)',
       email: 'owner@vault.local',
       passwordHash,
@@ -44,9 +41,11 @@ async function main() {
     },
   });
 
-  // 3. Create Viewer / Collaborator
-  const viewer = await prisma.user.create({
-    data: {
+  // 3. Ensure Viewer exists
+  const viewer = await prisma.user.upsert({
+    where: { email: 'viewer@vault.local' },
+    update: { isActive: true },
+    create: {
       name: 'Bob (Viewer Collaborator)',
       email: 'viewer@vault.local',
       passwordHash,
@@ -56,42 +55,47 @@ async function main() {
     },
   });
 
-  // 4. Create Genesis block in cryptographic audit chain
-  const timestamp = new Date();
-  const reason = 'TrustVault Genesis block initialized with benchmark accounts.';
-  const canonicalPayload = AuditService.formatCanonicalPayload(
-    timestamp,
-    admin.id,
-    admin.email,
-    'SYSTEM_GENESIS_INITIALIZE',
-    'SYSTEM',
-    'sys_root',
-    'SUCCESS',
-    reason,
-    '127.0.0.1'
-  );
+  // 4. Create Genesis block in cryptographic audit chain ONLY if audit ledger is empty
+  const logCount = await prisma.auditLog.count();
+  let entryHash = 'EXISTING_CHAIN';
 
-  const entryHash = crypto
-    .createHmac('sha256', AUDIT_SECRET)
-    .update(GENESIS_HASH + canonicalPayload)
-    .digest('hex');
-
-  await prisma.auditLog.create({
-    data: {
+  if (logCount === 0) {
+    const timestamp = new Date();
+    const reason = 'TrustVault Genesis block initialized with benchmark accounts.';
+    const canonicalPayload = AuditService.formatCanonicalPayload(
       timestamp,
-      userId: admin.id,
-      userEmail: admin.email,
-      action: 'SYSTEM_GENESIS_INITIALIZE',
-      resourceType: 'SYSTEM',
-      resourceId: 'sys_root',
-      outcome: 'SUCCESS',
+      admin.id,
+      admin.email,
+      'SYSTEM_GENESIS_INITIALIZE',
+      'SYSTEM',
+      'sys_root',
+      'SUCCESS',
       reason,
-      clientIp: '127.0.0.1',
-      userAgent: 'TrustVault Seed Harness 1.0',
-      previousHash: GENESIS_HASH,
-      entryHash,
-    },
-  });
+      '127.0.0.1'
+    );
+
+    entryHash = crypto
+      .createHmac('sha256', AUDIT_SECRET)
+      .update(GENESIS_HASH + canonicalPayload)
+      .digest('hex');
+
+    await prisma.auditLog.create({
+      data: {
+        timestamp,
+        userId: admin.id,
+        userEmail: admin.email,
+        action: 'SYSTEM_GENESIS_INITIALIZE',
+        resourceType: 'SYSTEM',
+        resourceId: 'sys_root',
+        outcome: 'SUCCESS',
+        reason,
+        clientIp: '127.0.0.1',
+        userAgent: 'TrustVault Seed Harness 1.0',
+        previousHash: GENESIS_HASH,
+        entryHash,
+      },
+    });
+  }
 
   console.log('✅ Seed completed successfully:');
   console.log(`   - Admin:  ${admin.email}  (Role: ADMIN,  Password: ${defaultPassword})`);

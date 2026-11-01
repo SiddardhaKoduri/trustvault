@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: trustvault-zero-trust
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma db push --skip-generate && npm run prisma:seed && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        value: file:./prisma/prod.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AUDIT_SECRET
+        generateValue: true
+      - key: STORAGE_DIR
+        value: ./storage/blobs

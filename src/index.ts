@@ -2,6 +2,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { app } from './app.js';
+import { FileService } from './services/file.service.js';
+
+// Guarantee isolated storage directory exists on startup
+FileService.ensureStorageDirectory();
 
 const PORT = process.env.PORT || 4000;
 
