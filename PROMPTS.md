@@ -191,3 +191,27 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
   - Tested `npm run prisma:seed`: Ran idempotently without altering existing audit blocks.
   - Verified `scripts/verify-db-chain.ts`: 295 blocks cryptographically intact.
   - All 40 automated tests passing across 4 suites.
+
+---
+
+### Entry 009: Live Production Penetration Testing, Binary Executable Interception & Cloud Verification
+- **Date & Time:** 2026-11-01 15:15 IST
+- **Target Component:** `https://trustvault-zero-trust.onrender.com`, `src/services/file.service.ts`, `scripts/verify-live-production.ts`
+- **Initial Prompt Given to AI:**
+  > "https://trustvault-zero-trust.onrender.com Please check this URL and go and check everything in the platform. Make sure everything is working correctly and properly according to our project needs. Check thoroughly. Check for any security vitalities. If you find anything, issues or any concerns, please tell me."
+- **Flaws & Edge Cases Caught During Live Penetration Testing:**
+  1. **Compiled Executable Binary Bypass in Magic-Byte Sniffer:** When testing with Linux ELF shellcode (`0x7f 0x45 0x4c 0x46`), `validateMagicBytes` initially only looked for null bytes (`0x00`). Because the first 5 bytes lacked a null byte, it fell through to `text/plain`. *Flaw:* Compiled binaries (`.elf`, `.exe`, `.class`, `.wasm`) without immediate null bytes could slip past as text.
+  2. **Non-Printable Binary Control Characters in Text Files:** ASCII/UTF-8 control characters (bytes `< 0x09`, `0x0b`, `0x0c`, `0x0e-0x1f`, `0x7f`) should never be treated as valid text documents.
+- **Correction Applied & Final Code:**
+  - Hardened `FileService.validateMagicBytes` with explicit executable signature interceptors:
+    - Linux ELF (`7F 45 4C 46`)
+    - Windows PE/DOS (`4D 5A`)
+    - Java Bytecode (`CA FE BA BE`)
+    - WebAssembly (`00 61 73 6D`)
+  - Added strict control character checks rejecting any binary control bytes in text documents.
+  - Authored automated end-to-end cloud penetration test script: `scripts/verify-live-production.ts`.
+- **Verification & Test Result:**
+  - Automated Cloud Penetration Test against `https://trustvault-zero-trust.onrender.com`: **28 PASSED, 0 FAILED**.
+  - Verified live Administrative Blindness: Admin received 403 on document views and downloads.
+  - Verified Instant Revocation at $T=0$: Revoked viewer was immediately blocked on their subsequent packet.
+  - Verified Cryptographic Audit Chain on cloud: Mathematical verification confirmed 100% chain integrity across all live entries.
