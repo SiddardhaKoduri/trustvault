@@ -66,12 +66,59 @@ export class FileService {
       return { valid: true, detectedMimeType: 'image/jpeg' };
     }
 
-    // 4. Plain Text / Markdown: Validate UTF-8 compliance and ensure no binary null bytes
+    // Explicitly reject known compiled executable binary signatures
+    // A. Linux ELF (7F 45 4C 46)
+    if (
+      buffer.length >= 4 &&
+      buffer[0] === 0x7f &&
+      buffer[1] === 0x45 &&
+      buffer[2] === 0x4c &&
+      buffer[3] === 0x46
+    ) {
+      return { valid: false, error: 'File signature rejected. Executable binaries (.elf) are strictly prohibited in vault.' };
+    }
+
+    // B. Windows PE / DOS MZ (4D 5A)
+    if (buffer.length >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) {
+      return { valid: false, error: 'File signature rejected. Executable binaries (.exe, .dll) are strictly prohibited in vault.' };
+    }
+
+    // C. Java Bytecode Class (CA FE BA BE)
+    if (
+      buffer.length >= 4 &&
+      buffer[0] === 0xca &&
+      buffer[1] === 0xfe &&
+      buffer[2] === 0xba &&
+      buffer[3] === 0xbe
+    ) {
+      return { valid: false, error: 'File signature rejected. Java bytecode binaries (.class) are strictly prohibited in vault.' };
+    }
+
+    // D. WebAssembly binary (00 61 73 6D)
+    if (
+      buffer.length >= 4 &&
+      buffer[0] === 0x00 &&
+      buffer[1] === 0x61 &&
+      buffer[2] === 0x73 &&
+      buffer[3] === 0x6d
+    ) {
+      return { valid: false, error: 'File signature rejected. WebAssembly binaries (.wasm) are strictly prohibited in vault.' };
+    }
+
+    // 4. Plain Text / Markdown: Validate UTF-8 compliance and ensure no binary control characters
     let isText = true;
     const checkLength = Math.min(buffer.length, 1024);
     for (let i = 0; i < checkLength; i++) {
-      // Null byte 0x00 indicates compiled binary / executable shellcode
-      if (buffer[i] === 0x00) {
+      const b = buffer[i];
+      // Flag non-printable binary control characters (except tab, LF, CR)
+      if (
+        b === 0x00 ||
+        (b >= 0x01 && b <= 0x08) ||
+        b === 0x0b ||
+        b === 0x0c ||
+        (b >= 0x0e && b <= 0x1f) ||
+        b === 0x7f
+      ) {
         isText = false;
         break;
       }
