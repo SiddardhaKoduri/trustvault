@@ -29,3 +29,23 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
 ---
 
 *(Entries continue chronologically as each milestone is built)*
+
+
+### Entry 002: Zero-Trust Auth Implementation, Benchmark Seed & Chained Audit Verification
+- **Date & Time:** 2026-11-01 13:13 IST
+- **Target Component:** `src/controllers/auth.controller.ts`, `src/middleware/auth.middleware.ts`, `prisma/seed.ts`, `src/tests/auth.test.ts`
+- **Initial Prompt Given to AI:**
+  > "Scaffold the database schema and implement zero-trust authentication, benchmark seeds, and test the endpoints."
+- **AI Initial Output / Recommendation:**
+  The AI implemented basic login and registration controllers returning a JWT token in the JSON body, with no set-cookie header, and handled failed login attempts with a silent `401 Unauthorized` without logging.
+- **Flaws & Security Risks Caught During Human Review:**
+  1. **Token Insecurity (XSS vulnerability):** Returning JWT strictly in JSON response prompts frontend clients to store tokens in `localStorage`, exposing them to Cross-Site Scripting (XSS) extraction.
+  2. **Audit Blindspot on Refused Attempts:** Failing to log failed authentication attempts violates Snovasys Core Standard 2 (*Verifiable Audit Trail: Every interaction, including refused attempts, must be logged*). Brute force attacks would go undetected.
+  3. **Missing Epoch Invalidation:** The AI didn't include the `permissionEpoch` in the token signature, making instant token revocation impossible without database writes on every token decode.
+- **Correction Applied & Final Code:**
+  - Enforced `HttpOnly`, `SameSite=Lax`, and `Secure` cookie issuance for the session token.
+  - Bound `AuditService.recordEvent({ action: 'AUTH_LOGIN_FAILED', outcome: 'DENIED', ... })` on any bad password or deactivated account attempt.
+  - Embedded `permissionEpoch` in token payload and verified it against the database user record in `auth.middleware.ts`.
+- **Verification & Test Result:**
+  - Automated test suite `src/tests/auth.test.ts` passed 6/6 tests.
+  - Verified `scripts/verify-db-chain.ts`: 4 cryptographic blocks verified 100% intact with zero tampering.
