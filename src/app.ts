@@ -5,12 +5,16 @@ import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes.js';
 import documentRoutes from './routes/document.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import auditRoutes from './routes/audit.routes.js';
 import { createRateLimiter } from './middleware/rate-limit.middleware.js';
 import { AuthenticatedRequest } from './types/index.js';
 
 export const app = express();
 
-// 1. Security Headers (Defends against XSS, Clickjacking, MIME-sniffing)
+// 1. Static Web Assets (Serves Swiss Minimalist Vault Frontend)
+app.use(express.static('public'));
+
+// 2. Security Headers (Defends against XSS, Clickjacking, MIME-sniffing)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -72,6 +76,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/audit', auditRoutes);
 
 // 8. 404 Handler
 app.use((req: Request, res: Response) => {

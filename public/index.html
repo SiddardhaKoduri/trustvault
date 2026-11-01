@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustVault — Secure Document Vault & Cryptographic Audit Ledger</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Global High-Assurance Header -->
+  <header class="vault-header">
+    <div class="vault-brand">
+      <h1>TRUSTVAULT</h1>
+      <span class="label-caps" style="color: #666;">// ZERO-TRUST SYSTEM</span>
+    </div>
+    <div class="vault-telemetry">
+      <div id="chainStatusTag" class="telemetry-tag verified">
+        ● CHAIN: 100% VERIFIED
+      </div>
+      <div id="userRoleTag" class="telemetry-tag">
+        ROLE: <span id="currentRoleDisplay">AUTHENTICATING...</span>
+      </div>
+      <div id="userSessionInfo" style="display: flex; align-items: center; gap: 12px;">
+        <span id="currentEmailDisplay" class="mono" style="font-size: 13px;"></span>
+        <button id="logoutBtn" class="btn btn-sm">SIGN OUT</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 12-Column Layout -->
+  <div class="vault-layout">
+
+    <!-- Columns 1 to 3: Persistent Index Rail -->
+    <aside class="index-rail">
+      <div>
+        <div class="rail-section">
+          <div class="rail-section-title label-caps">00 // VAULT NAVIGATION</div>
+          <nav class="rail-nav">
+            <a class="rail-link active" data-view="documents">
+              <span class="num">01</span>
+              <span>ALL DOCUMENTS</span>
+            </a>
+            <a class="rail-link" data-view="upload">
+              <span class="num">02</span>
+              <span>INGEST NEW FILE</span>
+            </a>
+            <a class="rail-link" data-view="shared">
+              <span class="num">03</span>
+              <span>SHARED WITH ME</span>
+            </a>
+            <a class="rail-link" data-view="trash">
+              <span class="num">04</span>
+              <span>TRASH / RECYCLE</span>
+            </a>
+            <a class="rail-link" data-view="audit" id="railLinkAudit">
+              <span class="num">05</span>
+              <span>AUDIT LEDGER</span>
+            </a>
+            <a class="rail-link" data-view="users" id="railLinkUsers" style="display: none;">
+              <span class="num">06</span>
+              <span>USER GOVERNANCE</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="rail-section">
+          <div class="rail-section-title label-caps">VERIFICATION ENGINE</div>
+          <div style="padding: 12px; background: var(--dp-color-surface); border: 1px solid var(--dp-color-ink);">
+            <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px;">CRYPTOGRAPHIC INTEGRITY</div>
+            <div id="railChainDetails" class="mono" style="font-size: 11px; color: #444;">
+              Verifying hash sequence...
+            </div>
+            <button id="manualVerifyBtn" class="btn btn-sm" style="margin-top: 10px; width: 100%;">
+              RE-VERIFY CHAIN
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Benchmark Persona Switcher (For Evaluator Walkthrough) -->
+      <div class="persona-switcher">
+        <div class="label-caps" style="margin-bottom: 6px; font-size: 10px; color: #666;">
+          EVALUATOR BENCHMARK SWITCHER
+        </div>
+        <div class="persona-btn-group">
+          <button class="btn btn-sm" onclick="switchPersona('admin@vault.local')">ADMIN</button>
+          <button class="btn btn-sm" onclick="switchPersona('owner@vault.local')">OWNER</button>
+          <button class="btn btn-sm" onclick="switchPersona('viewer@vault.local')">VIEWER</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Columns 4 to 12: Main Operational Matrix -->
+    <main class="main-matrix">
+
+      <!-- View: Document Registry -->
+      <section id="viewDocuments" class="matrix-view">
+        <div class="matrix-header">
+          <div>
+            <div class="label-caps">SECTION 01</div>
+            <h2 class="matrix-title" id="documentsViewTitle">DOCUMENT REGISTRY</h2>
+            <div class="matrix-subtitle">Confidential items secured with server-side Policy Enforcement.</div>
+          </div>
+          <button class="btn btn-primary" onclick="navigateTo('upload')">+ INGEST NEW DOCUMENT</button>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="action-bar">
+          <input type="text" id="searchInput" placeholder="Search by document title or category..." style="flex: 2;">
+          <select id="categoryFilter" style="flex: 1;">
+            <option value="">All Categories</option>
+            <option value="Financial">Financial</option>
+            <option value="Legal">Legal</option>
+            <option value="Engineering">Engineering</option>
+            <option value="Personal">Personal</option>
+            <option value="General">General</option>
+          </select>
+          <button id="searchBtn" class="btn">SEARCH</button>
+        </div>
+
+        <!-- Ruled Registry Table -->
+        <div class="ruled-table-container">
+          <table class="ruled-table">
+            <thead>
+              <tr>
+                <th>TITLE / FILENAME</th>
+                <th>CATEGORY</th>
+                <th>VERSION</th>
+                <th>SIZE</th>
+                <th>OWNER</th>
+                <th>YOUR ACCESS</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="documentsTableBody">
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 24px;">Loading document vault...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- View: Ingest New File -->
+      <section id="viewUpload" class="matrix-view" style="display: none;">
+        <div class="matrix-header">
+          <div>
+            <div class="label-caps">SECTION 02</div>
+            <h2 class="matrix-title">INGEST DOCUMENT</h2>
+            <div class="matrix-subtitle">Isolated blob storage. Server enforces magic-byte sniffing & 5 MB cap.</div>
+          </div>
+        </div>
+
+        <div style="max-width: 640px;">
+          <div id="dropzone" class="dropzone">
+            <div class="dropzone-title">DROP FILE HERE OR CLICK TO BROWSE</div>
+            <div class="dropzone-subtitle">Supported binary signatures: PDF, PNG, JPEG, Plain Text (Max 5 MB)</div>
+            <input type="file" id="fileInput" style="display: none;">
+            <div id="selectedFileName" class="mono" style="font-weight: 700; color: #1b5e20;"></div>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label class="label-caps" style="display: block; margin-bottom: 6px;">DOCUMENT TITLE (SANITIZED)</label>
+            <input type="text" id="uploadTitleInput" placeholder="e.g. Q4 Financial Audit Report">
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label class="label-caps" style="display: block; margin-bottom: 6px;">CATEGORY</label>
+            <select id="uploadCategorySelect">
+              <option value="General">General</option>
+              <option value="Financial">Financial</option>
+              <option value="Legal">Legal</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Personal">Personal</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <label class="label-caps" style="display: block; margin-bottom: 6px;">DESCRIPTION (OPTIONAL)</label>
+            <textarea id="uploadDescriptionInput" rows="3" placeholder="Context or summary of confidential contents..."></textarea>
+          </div>
+
+          <button id="submitUploadBtn" class="btn btn-primary" style="width: 100%;">
+            ENCRYPT & INGEST INTO VAULT
+          </button>
+        </div>
+      </section>
+
+      <!-- View: Cryptographic Audit Ledger -->
+      <section id="viewAudit" class="matrix-view" style="display: none;">
+        <div class="matrix-header">
+          <div>
+            <div class="label-caps">SECTION 05 // SYSTEM LEDGER</div>
+            <h2 class="matrix-title">CRYPTOGRAPHIC AUDIT CHAIN</h2>
+            <div class="matrix-subtitle">Tamper-evident HMAC-SHA256 sequential block ledger. Zero silent alterations.</div>
+          </div>
+          <button class="btn" onclick="verifyFullChain()">RUN MATHEMATICAL AUDIT</button>
+        </div>
+
+        <div class="ruled-table-container">
+          <table class="ruled-table">
+            <thead>
+              <tr>
+                <th>BLOCK #</th>
+                <th>TIMESTAMP (UTC)</th>
+                <th>ACTOR</th>
+                <th>ACTION</th>
+                <th>RESOURCE</th>
+                <th>OUTCOME</th>
+                <th>HASH PROOF</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 24px;">Loading cryptographic chain...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- View: User Governance (Admin Only) -->
+      <section id="viewUsers" class="matrix-view" style="display: none;">
+        <div class="matrix-header">
+          <div>
+            <div class="label-caps">SECTION 06 // GOVERNANCE</div>
+            <h2 class="matrix-title">USER ACCOUNT DIRECTORY</h2>
+            <div class="matrix-subtitle">Administrative state control. Deactivation revokes sessions at T=0.</div>
+          </div>
+        </div>
+
+        <div class="ruled-table-container">
+          <table class="ruled-table">
+            <thead>
+              <tr>
+                <th>NAME</th>
+                <th>EMAIL</th>
+                <th>ROLE</th>
+                <th>STATUS</th>
+                <th>EPOCH</th>
+                <th>DOCS OWNED</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 24px;">Loading user directory...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Share & Instant Revocation Modal -->
+  <div id="shareModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="shareModalTitle">GRANT ACCESS</h3>
+        <button class="btn btn-sm" onclick="closeModal('shareModal')">✕</button>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label class="label-caps" style="display: block; margin-bottom: 6px;">COLLABORATOR EMAIL</label>
+        <input type="email" id="shareEmailInput" placeholder="viewer@vault.local">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label class="label-caps" style="display: block; margin-bottom: 6px;">ACCESS LEVEL</label>
+        <div style="display: flex; gap: 20px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="radio" name="accessLevelRadio" value="READ" checked>
+            <span>READ (View & Download Only)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="radio" name="accessLevelRadio" value="EDIT">
+            <span>EDIT (Upload New Versions)</span>
+          </label>
+        </div>
+      </div>
+
+      <button id="grantShareBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 24px;">
+        CONFIRM PERMISSION GRANT
+      </button>
+
+      <div class="label-caps" style="margin-bottom: 10px;">CURRENT COLLABORATORS (INSTANT REVOCATION)</div>
+      <div class="ruled-table-container">
+        <table class="ruled-table">
+          <thead>
+            <tr>
+              <th>USER</th>
+              <th>LEVEL</th>
+              <th>ACTION</th>
+            </tr>
+          </thead>
+          <tbody id="collaboratorsTableBody">
+            <tr>
+              <td colspan="3" style="text-align: center; padding: 12px;">No external collaborators.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Version History & Upload Drawer -->
+  <div id="versionsModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="versionsModalTitle">VERSION LEDGER</h3>
+        <button class="btn btn-sm" onclick="closeModal('versionsModal')">✕</button>
+      </div>
+
+      <!-- Upload New Version Trigger (For Owner / Editor) -->
+      <div id="uploadVersionContainer" style="border: var(--dp-border-rule); padding: 16px; margin-bottom: 20px; background: var(--dp-color-surface);">
+        <div class="label-caps" style="margin-bottom: 8px;">UPLOAD NEW ARTIFACT VERSION</div>
+        <input type="file" id="versionFileInput" style="margin-bottom: 10px;">
+        <input type="text" id="versionSummaryInput" placeholder="Change summary (e.g. Added section 4.2)" style="margin-bottom: 10px;">
+        <button id="submitVersionBtn" class="btn btn-sm btn-primary">COMMIT NEW VERSION</button>
+      </div>
+
+      <div class="label-caps" style="margin-bottom: 10px;">HISTORICAL ARTIFACT ARCHIVE</div>
+      <div class="ruled-table-container">
+        <table class="ruled-table">
+          <thead>
+            <tr>
+              <th>VER</th>
+              <th>TIMESTAMP</th>
+              <th>SIZE</th>
+              <th>SUMMARY</th>
+              <th>DOWNLOAD</th>
+            </tr>
+          </thead>
+          <tbody id="versionsTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 12px;">Loading versions...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Document Modal -->
+  <div id="renameModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>RENAME / EDIT METADATA</h3>
+        <button class="btn btn-sm" onclick="closeModal('renameModal')">✕</button>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label class="label-caps" style="display: block; margin-bottom: 6px;">NEW TITLE</label>
+        <input type="text" id="renameTitleInput">
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label class="label-caps" style="display: block; margin-bottom: 6px;">CATEGORY</label>
+        <input type="text" id="renameCategoryInput">
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <label class="label-caps" style="display: block; margin-bottom: 6px;">DESCRIPTION</label>
+        <textarea id="renameDescriptionInput" rows="3"></textarea>
+      </div>
+
+      <button id="submitRenameBtn" class="btn btn-primary" style="width: 100%;">
+        SAVE METADATA
+      </button>
+    </div>
+  </div>
+
+  <!-- Sign In Terminal Modal -->
+  <div id="authModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>VAULT AUTHENTICATION</h3>
+      </div>
+      <div style="font-size: 13px; color: #555; margin-bottom: 20px;">
+        Zero-trust session gate. Enter credentials or select a benchmark persona.
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <label class="label-caps" style="display: block; margin-bottom: 4px;">EMAIL ADDRESS</label>
+        <input type="email" id="authEmailInput" placeholder="owner@vault.local">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label class="label-caps" style="display: block; margin-bottom: 4px;">PASSWORD</label>
+        <input type="password" id="authPasswordInput" value="VaultPassword2026!">
+      </div>
+
+      <div id="authErrorMsg" class="mono" style="color: var(--dp-color-accent); font-size: 12px; margin-bottom: 14px; display: none;"></div>
+
+      <button id="authLoginBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 16px;">
+        AUTHENTICATE & ENTER
+      </button>
+
+      <div class="label-caps" style="margin-bottom: 8px; color: #666;">OR SELECT BENCHMARK ACCOUNT:</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+        <button class="btn btn-sm" onclick="quickFillAuth('admin@vault.local')">ADMIN</button>
+        <button class="btn btn-sm" onclick="quickFillAuth('owner@vault.local')">OWNER</button>
+        <button class="btn btn-sm" onclick="quickFillAuth('viewer@vault.local')">VIEWER</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

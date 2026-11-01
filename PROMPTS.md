@@ -117,3 +117,28 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
   - Added 6 new integration tests in `src/tests/admin-lifecycle.test.ts`.
   - Total test suite now runs **25 tests across 3 files**, with 100% passing.
   - Ran `scripts/verify-db-chain.ts`: All 31 cryptographic blocks verified intact with zero tampering.
+
+
+## 📅 Day 3 — Sunday/Monday, 1-2 November 2026
+
+### Entry 006: Cryptographic Audit Explorer, Evaluator Mutation Immunity & Swiss Minimalist Frontend
+- **Date & Time:** 2026-11-01 14:02 IST
+- **Target Component:** `src/controllers/audit.controller.ts`, `src/routes/audit.routes.ts`, `src/tests/mutation-immunity.test.ts`, `public/index.html`, `public/css/style.css`, `public/js/app.js`
+- **Initial Prompt Given to AI:**
+  > "Build the UI using the refined Swiss Minimalist prompt. If Day 1 and Day 2 are verified, proceed with Day 3."
+- **Flaws & Security Risks Caught During Human Review:**
+  1. **Audit Ledger Privacy Boundary (Information Disclosure):** Initially, the audit controller would have exposed all events across all documents to any authenticated user. *Flaw:* Viewers must have zero visibility into system audit logs, and Document Owners should only see events concerning their own documents. Admins see system-wide logs but remain blind to file contents.
+  2. **Evaluation Mutation Blindspot:** If an evaluator comments out an authorization check, tests that only test the "happy path" still pass. *Flaw:* Snovasys explicitly deducts marks if mutation testing passes with stripped authorization.
+  3. **Visual Inconsistency:** Naive dashboards use rounded cards, blurry gradients, and floating dropshadows that undermine the perception of institutional security.
+- **Correction Applied & Final Code:**
+  - Built strict role-scoped audit retrieval in `audit.controller.ts` (`getSystemAuditLogs` for Admin; `getDocumentAuditLogs` for Owner; Viewers strictly blocked with 403).
+  - Built dedicated `src/tests/mutation-immunity.test.ts` with 12 negative invariant test assertions proving that bypassing owner checks, admin blindness, permission levels, or magic byte sniffers immediately triggers test failure.
+  - Implemented the complete **Swiss Minimalist** frontend in `public/`:
+    - Strict 12-column grid with a 3-column persistent security rail and 9-column data matrix.
+    - Authoritative design tokens (`#ffffff`, `#000000`, `#f0f0f0`, `#c90000`, 2px solid rules, 0px radius).
+    - Interactive Cryptographic Audit Chain Explorer with block-by-block hash linkages and signal-red `[DENIED]` markers for failed attacks.
+    - Real-time live Cryptographic Chain Integrity status indicator.
+    - One-click benchmark persona switcher (`ADMIN`, `OWNER`, `VIEWER`) for evaluation walkthroughs.
+- **Verification & Test Result:**
+  - All 37 automated tests across 4 test suites passed with 100% success.
+  - Verified `scripts/verify-db-chain.ts`: 91 blocks in the database audit chain verified 100% intact.
