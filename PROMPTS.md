@@ -231,7 +231,7 @@ This document is maintained chronologically throughout the Snovasys Fresher Hiri
 ## 📅 Phase 5 — Monday, 2 November 2026
 
 ### Entry 010: Helmet CSP Hardening (Eliminating 'unsafe-inline' via DOM Event Delegation), Scoped Session Invalidation & Append-Only Database Triggers
-- **Commit Reference:** `Pending`
+- **Commit Reference:** `366b7d3`
 - **Date & Time:** 2026-11-02 19:30 IST
 - **Target Component:** `src/app.ts`, `public/index.html`, `public/js/app.js`, `src/controllers/document.controller.ts`, `src/lib/prisma.ts`, `package.json`, `THREATS.md`, `README.md`
 - **Initial Prompt Given to AI:**
