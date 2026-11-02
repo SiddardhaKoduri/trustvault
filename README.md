@@ -39,7 +39,7 @@ flowchart TD
 
 ### The Top-1% Security Invariants
 1. **Administrative Blindness (Zero-Knowledge Governance):** System Administrators manage users, activate/deactivate accounts, and inspect system audit trails, but have **zero intrinsic visibility into confidential document contents or version downloads** unless an owner explicitly shares access with them.
-2. **Instant Revocation ($T=0$):** Eliminates stateless JWT caching windows. Each account and permission change increments a live `permissionEpoch`. Revoking a collaborator or deactivating a rogue user terminates their active session on their immediate next request without latency.
+2. **Instant Revocation ($T=0$):** Eliminates stateless JWT caching windows. User deactivations bump `permissionEpoch` terminating active sessions immediately on their next request. Document permission revocations delete permission rows, blocking document access at $T=0$ via live Policy Decision Point evaluation while preserving the collaborator's access to their other authorized files.
 3. **Provable Cryptographic Audit Chain:** Every state mutation and refused access attempt is committed to a linear HMAC-SHA256 hash chain:  
    $$\text{EntryHash}_k = \text{HMAC\_SHA256}(\text{Secret}, \text{EntryHash}_{k-1} \parallel \text{CanonicalPayload}_k)$$  
    Modifying, injecting, or deleting any historical database row breaks mathematical verification at that exact index.
@@ -86,21 +86,22 @@ TrustVault includes a **1-click Persona Switcher** directly in the top header an
 
 ## 🧪 Comprehensive Automated Testing & Mutation Immunity
 
-TrustVault includes **40 automated test assertions** across 4 dedicated suites:
+TrustVault includes **41 automated test assertions** across 4 dedicated suites:
 
 ```bash
 # Run the complete test suite
 npm test
 
 # Run real-time mathematical proof across all database audit rows
-npx tsx scripts/verify-db-chain.ts
+npm run verify:audit
+# or directly: npx tsx scripts/verify-db-chain.ts
 ```
 
 ### Test Suite Architecture
 - **`src/tests/auth.test.ts` (8 Tests):** Login, registration, role privilege escalation defense, HTTP-only cookie validation, and epoch validation.
 - **`src/tests/document.test.ts` (11 Tests):** Magic-byte sniffing, shellcode rejection, path traversal sanitization, Administrative Blindness, and instant revocation.
 - **`src/tests/admin-lifecycle.test.ts` (9 Tests):** Document renaming, user directory governance, instant session termination, Trash-to-Purge lifecycle, document access ledger scoping, and stored script rejection.
-- **`src/tests/mutation-immunity.test.ts` (12 Tests):** Snovasys Evaluator Negative Security Harness. Verifies that commenting out or bypassing any authorization check in PDP causes immediate test failure.
+- **`src/tests/mutation-immunity.test.ts` (13 Tests):** Snovasys Evaluator Negative Security Harness. Verifies that commenting out or bypassing any authorization check in PDP causes immediate test failure, and validates database-level append-only triggers.
 
 ---
 
@@ -120,7 +121,7 @@ npx tsx scripts/verify-db-chain.ts
 | `GET` | `/api/documents/:id/versions/:v/download` | Owner, Collaborator | Downloads historical version | Authorized via PDP |
 | `PUT` | `/api/documents/:id` | Owner, Editor | Renames metadata / category | Viewers receive 403 Forbidden |
 | `POST` | `/api/documents/:id/permissions` | Owner | Shares document (`READ`/`EDIT`)| Restricted strictly to Document Owner |
-| `DELETE`| `/api/documents/:id/permissions/:userId` | Owner | Instantly revokes collaborator | Deletes permission + bumps user `permissionEpoch` at $T=0$ |
+| `DELETE`| `/api/documents/:id/permissions/:userId` | Owner | Instantly revokes collaborator | Deletes permission; blocks doc at $T=0$ via live PDP |
 | `DELETE`| `/api/documents/:id` | Owner | Moves document to Trash (Soft) | Document hidden from normal index; accessible in Trash |
 | `POST` | `/api/documents/:id/restore`| Owner | Restores document from Trash | Validated via PDP |
 | `DELETE`| `/api/documents/:id/purge` | Owner | Permanently purges document | Erases all physical version blobs from storage disk |

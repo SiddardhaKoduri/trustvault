@@ -161,6 +161,13 @@ describe('Day 3: Snovasys Evaluator Mutation Immunity & Negative Security Harnes
       .set('Cookie', `token=${viewerToken}`);
 
     expect([401, 403]).toContain(revokedRes.status);
+
+    // 4. Scoped Revocation: Viewer session is STILL VALID for other operations (single-doc revocation does not kill entire session)
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', `token=${viewerToken}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user.email).toBe('viewer@vault.local');
   });
 
   it('MUTATION-INV-11: Verifiable Audit Invariant: Refused attempts produce DENIED records in database', async () => {
@@ -179,5 +186,26 @@ describe('Day 3: Snovasys Evaluator Mutation Immunity & Negative Security Harnes
     expect(res.body.valid).toBe(true);
     expect(res.body.latestEntryHash).toBeDefined();
     expect(res.body.totalEntries).toBeGreaterThan(0);
+  });
+
+  it('MUTATION-INV-13: Database-Level Immutability: Engine triggers abort any UPDATE or DELETE on AuditLog table', async () => {
+    const sampleLog = await prisma.auditLog.findFirst();
+    expect(sampleLog).toBeDefined();
+
+    // 1. Attempt raw UPDATE on AuditLog
+    await expect(
+      prisma.$executeRawUnsafe(
+        `UPDATE AuditLog SET reason = 'Tampered Reason' WHERE id = ?`,
+        sampleLog!.id
+      )
+    ).rejects.toThrow(/Audit ledger is strictly append-only/);
+
+    // 2. Attempt raw DELETE on AuditLog
+    await expect(
+      prisma.$executeRawUnsafe(
+        `DELETE FROM AuditLog WHERE id = ?`,
+        sampleLog!.id
+      )
+    ).rejects.toThrow(/Audit ledger is strictly append-only/);
   });
 });

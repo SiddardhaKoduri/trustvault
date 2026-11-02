@@ -12,7 +12,7 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:security": "vitest run src/tests/security.test.ts",
-    "verify:audit": "node .agents/skills/top1-secure-vault-architect/scripts/audit_chain_verifier.js"
+    "verify:audit": "tsx scripts/verify-db-chain.ts"
   },
   "keywords": [
     "zero-trust",

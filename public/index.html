@@ -84,9 +84,9 @@
           EVALUATOR BENCHMARK SWITCHER
         </div>
         <div class="persona-btn-group">
-          <button class="btn btn-sm" onclick="switchPersona('admin@vault.local')">ADMIN</button>
-          <button class="btn btn-sm" onclick="switchPersona('owner@vault.local')">OWNER</button>
-          <button class="btn btn-sm" onclick="switchPersona('viewer@vault.local')">VIEWER</button>
+          <button class="btn btn-sm" data-action="switch-persona" data-persona="admin@vault.local">ADMIN</button>
+          <button class="btn btn-sm" data-action="switch-persona" data-persona="owner@vault.local">OWNER</button>
+          <button class="btn btn-sm" data-action="switch-persona" data-persona="viewer@vault.local">VIEWER</button>
         </div>
       </div>
     </aside>
@@ -102,7 +102,7 @@
             <h2 class="matrix-title" id="documentsViewTitle">DOCUMENT REGISTRY</h2>
             <div class="matrix-subtitle">Confidential items secured with server-side Policy Enforcement.</div>
           </div>
-          <button class="btn btn-primary" onclick="navigateTo('upload')">+ INGEST NEW DOCUMENT</button>
+          <button class="btn btn-primary" data-action="navigate" data-target="upload">+ INGEST NEW DOCUMENT</button>
         </div>
 
         <!-- Filter & Search Bar -->
@@ -195,7 +195,7 @@
             <h2 class="matrix-title">CRYPTOGRAPHIC AUDIT CHAIN</h2>
             <div class="matrix-subtitle">Tamper-evident HMAC-SHA256 sequential block ledger. Zero silent alterations.</div>
           </div>
-          <button class="btn" onclick="verifyFullChain()">RUN MATHEMATICAL AUDIT</button>
+          <button class="btn" data-action="verify-chain">RUN MATHEMATICAL AUDIT</button>
         </div>
 
         <div class="ruled-table-container">
@@ -260,7 +260,7 @@
     <div class="modal-box">
       <div class="modal-header">
         <h3 id="shareModalTitle">GRANT ACCESS</h3>
-        <button class="btn btn-sm" onclick="closeModal('shareModal')">✕</button>
+        <button class="btn btn-sm" data-action="close-modal" data-target="shareModal">✕</button>
       </div>
 
       <div style="margin-bottom: 20px;">
@@ -311,7 +311,7 @@
     <div class="modal-box">
       <div class="modal-header">
         <h3 id="versionsModalTitle">VERSION LEDGER</h3>
-        <button class="btn btn-sm" onclick="closeModal('versionsModal')">✕</button>
+        <button class="btn btn-sm" data-action="close-modal" data-target="versionsModal">✕</button>
       </div>
 
       <!-- Upload New Version Trigger (For Owner / Editor) -->
@@ -349,7 +349,7 @@
     <div class="modal-box">
       <div class="modal-header">
         <h3>RENAME / EDIT METADATA</h3>
-        <button class="btn btn-sm" onclick="closeModal('renameModal')">✕</button>
+        <button class="btn btn-sm" data-action="close-modal" data-target="renameModal">✕</button>
       </div>
 
       <div style="margin-bottom: 16px;">
@@ -378,7 +378,7 @@
     <div class="modal-box" style="max-width: 800px;">
       <div class="modal-header">
         <h3 id="docAuditModalTitle">DOCUMENT ACCESS AUDIT LEDGER</h3>
-        <button class="btn btn-sm" onclick="closeModal('docAuditModal')">✕</button>
+        <button class="btn btn-sm" data-action="close-modal" data-target="docAuditModal">✕</button>
       </div>
       <div class="matrix-subtitle" style="margin-bottom: 16px; font-size: 13px;">
         Provable tamper-evident access log answering: <em>"Who opened this file, and when?"</em>
@@ -433,9 +433,9 @@
 
       <div class="label-caps" style="margin-bottom: 8px; color: #666;">OR SELECT BENCHMARK ACCOUNT:</div>
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
-        <button class="btn btn-sm" onclick="quickFillAuth('admin@vault.local')">ADMIN</button>
-        <button class="btn btn-sm" onclick="quickFillAuth('owner@vault.local')">OWNER</button>
-        <button class="btn btn-sm" onclick="quickFillAuth('viewer@vault.local')">VIEWER</button>
+        <button class="btn btn-sm" data-action="quick-fill" data-persona="admin@vault.local">ADMIN</button>
+        <button class="btn btn-sm" data-action="quick-fill" data-persona="owner@vault.local">OWNER</button>
+        <button class="btn btn-sm" data-action="quick-fill" data-persona="viewer@vault.local">VIEWER</button>
       </div>
     </div>
   </div>

@@ -55,6 +55,87 @@ function initEventListeners() {
   document.getElementById('manualVerifyBtn')?.addEventListener('click', verifyFullChain);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('authLoginBtn')?.addEventListener('click', handleLogin);
+
+  // Global Event Delegation for all data-action controls (Strict CSP Compliance: No inline onclick)
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+
+    const action = target.getAttribute('data-action');
+    switch (action) {
+      case 'switch-persona': {
+        const persona = target.getAttribute('data-persona');
+        if (persona) switchPersona(persona);
+        break;
+      }
+      case 'quick-fill': {
+        const persona = target.getAttribute('data-persona');
+        if (persona) quickFillAuth(persona);
+        break;
+      }
+      case 'navigate': {
+        const view = target.getAttribute('data-target');
+        if (view) navigateTo(view);
+        break;
+      }
+      case 'close-modal': {
+        const modalId = target.getAttribute('data-target');
+        if (modalId) closeModal(modalId);
+        break;
+      }
+      case 'verify-chain': {
+        verifyFullChain();
+        break;
+      }
+      case 'open-versions': {
+        const docId = target.getAttribute('data-id');
+        if (docId) openVersionsModal(docId);
+        break;
+      }
+      case 'open-share': {
+        const docId = target.getAttribute('data-id');
+        if (docId) openShareModal(docId);
+        break;
+      }
+      case 'open-rename': {
+        const docId = target.getAttribute('data-id');
+        if (docId) openRenameModal(docId);
+        break;
+      }
+      case 'open-doc-audit': {
+        const docId = target.getAttribute('data-id');
+        if (docId) openDocAuditModal(docId);
+        break;
+      }
+      case 'soft-delete': {
+        const docId = target.getAttribute('data-id');
+        if (docId) softDeleteDoc(docId);
+        break;
+      }
+      case 'restore-doc': {
+        const docId = target.getAttribute('data-id');
+        if (docId) restoreDoc(docId);
+        break;
+      }
+      case 'purge-doc': {
+        const docId = target.getAttribute('data-id');
+        if (docId) purgeDoc(docId);
+        break;
+      }
+      case 'instant-revoke': {
+        const docId = target.getAttribute('data-doc-id');
+        const userId = target.getAttribute('data-user-id');
+        if (docId && userId) instantRevoke(docId, userId);
+        break;
+      }
+      case 'toggle-user-status': {
+        const userId = target.getAttribute('data-user-id');
+        const makeActive = target.getAttribute('data-status') === 'true';
+        if (userId) toggleUserStatus(userId, makeActive);
+        break;
+      }
+    }
+  });
 }
 
 function updateSelectedFileName() {
@@ -248,15 +329,15 @@ async function loadDocuments() {
                 !isTrash
                   ? `
                 <a href="/api/documents/${doc.id}/download" class="btn btn-sm" download>DOWNLOAD</a>
-                <button class="btn btn-sm" onclick="openVersionsModal('${doc.id}')">VERSIONS</button>
-                ${isOwner ? `<button class="btn btn-sm" onclick="openShareModal('${doc.id}')">SHARE</button>` : ''}
-                ${isOwner || isEditor ? `<button class="btn btn-sm" onclick="openRenameModal('${doc.id}')">RENAME</button>` : ''}
-                ${isOwner ? `<button class="btn btn-sm" onclick="openDocAuditModal('${doc.id}')">AUDIT</button>` : ''}
-                ${isOwner ? `<button class="btn btn-sm btn-accent" onclick="softDeleteDoc('${doc.id}')">TRASH</button>` : ''}
+                <button class="btn btn-sm" data-action="open-versions" data-id="${doc.id}">VERSIONS</button>
+                ${isOwner ? `<button class="btn btn-sm" data-action="open-share" data-id="${doc.id}">SHARE</button>` : ''}
+                ${isOwner || isEditor ? `<button class="btn btn-sm" data-action="open-rename" data-id="${doc.id}">RENAME</button>` : ''}
+                ${isOwner ? `<button class="btn btn-sm" data-action="open-doc-audit" data-id="${doc.id}">AUDIT</button>` : ''}
+                ${isOwner ? `<button class="btn btn-sm btn-accent" data-action="soft-delete" data-id="${doc.id}">TRASH</button>` : ''}
               `
                   : `
-                <button class="btn btn-sm" onclick="restoreDoc('${doc.id}')">RESTORE</button>
-                <button class="btn btn-sm btn-accent" onclick="purgeDoc('${doc.id}')">PURGE PERMANENTLY</button>
+                <button class="btn btn-sm" data-action="restore-doc" data-id="${doc.id}">RESTORE</button>
+                <button class="btn btn-sm btn-accent" data-action="purge-doc" data-id="${doc.id}">PURGE PERMANENTLY</button>
               `
               }
             </div>
@@ -418,7 +499,7 @@ async function loadCollaborators(docId) {
         </td>
         <td><span class="badge ${p.accessLevel === 'EDIT' ? 'badge-edit' : 'badge-read'}">${p.accessLevel}</span></td>
         <td>
-          <button class="btn btn-sm btn-accent" onclick="instantRevoke('${docId}', '${p.user.id}')">
+          <button class="btn btn-sm btn-accent" data-action="instant-revoke" data-doc-id="${docId}" data-user-id="${p.user.id}">
             REVOKE ACCESS (T=0)
           </button>
         </td>
@@ -713,7 +794,7 @@ async function loadUserDirectory() {
           ${
             u.id !== currentUser.id
               ? `
-            <button class="btn btn-sm ${u.isActive ? 'btn-accent' : ''}" onclick="toggleUserStatus('${u.id}', ${!u.isActive})">
+            <button class="btn btn-sm ${u.isActive ? 'btn-accent' : ''}" data-action="toggle-user-status" data-user-id="${u.id}" data-status="${!u.isActive}">
               ${u.isActive ? 'DEACTIVATE (T=0)' : 'ACTIVATE'}
             </button>
           `

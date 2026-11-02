@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { AuditService } from '../src/services/audit.service.js';
+import { ensureAuditLedgerTriggers } from '../src/lib/prisma.js';
 
 const prisma = new PrismaClient();
 const AUDIT_SECRET = process.env.AUDIT_SECRET || 'trustvault_audit_chain_hmac_secret_2026_top1';
@@ -9,6 +10,9 @@ const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000
 
 async function main() {
   console.log('Seeding TrustVault Zero-Trust benchmark accounts...');
+
+  // Enforce append-only triggers at database level
+  await ensureAuditLedgerTriggers();
 
   const defaultPassword = 'VaultPassword2026!';
   const passwordHash = await bcrypt.hash(defaultPassword, 12);

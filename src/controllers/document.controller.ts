@@ -505,7 +505,9 @@ export class DocumentController {
 
   /**
    * Instantly revokes a collaborator's access to a document.
-   * Zero-Delay Revocation: Deletes permission row and bumps targetUser's permissionEpoch.
+   * Zero-Delay Revocation: Deletes DocumentPermission row, immediately blocking
+   * access to this document at T=0 via live PDP evaluation, while preserving
+   * the collaborator's session across other documents they still hold access to.
    */
   static async revokePermission(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ error: 'Authentication required' });
@@ -533,21 +535,17 @@ export class DocumentController {
         return res.status(404).json({ error: 'No permission record found for this user.' });
       }
 
-      // Zero-Delay Revocation: Remove permission row AND increment user permissionEpoch
-      await prisma.$transaction([
-        prisma.documentPermission.delete({
-          where: {
-            documentId_userId: {
-              documentId: id,
-              userId,
-            },
+      // Zero-Delay Revocation: Instantly delete permission row.
+      // PDP checks DocumentPermission live on every request, blocking access to this doc at T=0 (403 Forbidden).
+      // Collaborator session remains valid for any other documents they still have access to.
+      await prisma.documentPermission.delete({
+        where: {
+          documentId_userId: {
+            documentId: id,
+            userId,
           },
-        }),
-        prisma.user.update({
-          where: { id: userId },
-          data: { permissionEpoch: { increment: 1 } },
-        }),
-      ]);
+        },
+      });
 
       await AuditService.recordEvent({
         userId: req.user.id,
